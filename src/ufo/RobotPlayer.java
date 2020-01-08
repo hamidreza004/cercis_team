@@ -51,13 +51,12 @@ public strictfp class RobotPlayer {
                     case NET_GUN:            runNetGun();            break;
                 }
 
-                // Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
-                Clock.yield();
-
             } catch (Exception e) {
                 System.out.println(rc.getType() + " Exception");
                 e.printStackTrace();
             }
+            // Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
+            Clock.yield();
         }
     }
 
