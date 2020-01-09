@@ -152,6 +152,7 @@ task unpackClient(type: Copy, dependsOn: configurations.client) {
     dependsOn configurations.client
     dependsOn screamForUpdate
     from {
+656565
         configurations.client.collect {
             zipTree(it)
         }

@@ -1,6 +1,8 @@
 package ufo;
 import battlecode.common.*;
 
+import java.util.HashMap;
+
 public strictfp class RobotPlayer {
     static RobotController rc;
     static Direction[] directions = {
@@ -23,6 +25,8 @@ public strictfp class RobotPlayer {
      * If this method returns, the robot dies!
      **/
     @SuppressWarnings("unused")
+    static HashMap<MapLocation, Integer> saveMap = new HashMap<>();
+
     public static void run(RobotController rc) throws GameActionException {
 
         // This is the RobotController object. You use it to perform actions from this robot,
@@ -44,7 +48,7 @@ public strictfp class RobotPlayer {
                     case MINER:              runMiner();             break;
                     case REFINERY:           runRefinery();          break;
                     case VAPORATOR:          runVaporator();         break;
-                    case DESIGN_SCHOOL:      runDesignSchool();      break;
+                    case DESIGN_SCHOOL:     runDesignSchool();      break;
                     case FULFILLMENT_CENTER: runFulfillmentCenter(); break;
                     case LANDSCAPER:         runLandscaper();        break;
                     case DELIVERY_DRONE:     runDeliveryDrone();     break;
@@ -61,24 +65,43 @@ public strictfp class RobotPlayer {
     }
 
     static void runHQ() throws GameActionException {
-        for (Direction dir : directions)
-            tryBuild(RobotType.MINER, dir);
+        if (rc.getRoundNum()==1)
+            tryBuild(RobotType.MINER, Direction.EAST);
+    }
+
+    static int distance(MapLocation a, MapLocation b){
+        return (a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y);
     }
 
     static void runMiner() throws GameActionException {
-        tryBlockchain();
-        tryMove(randomDirection());
-        if (tryMove(randomDirection()))
-            System.out.println("I moved!");
-        // tryBuild(randomSpawnedByMiner(), randomDirection());
-        for (Direction dir : directions)
-            tryBuild(RobotType.FULFILLMENT_CENTER, dir);
-        for (Direction dir : directions)
-            if (tryRefine(dir))
-                System.out.println("I refined soup! " + rc.getTeamSoup());
-        for (Direction dir : directions)
-            if (tryMine(dir))
-                System.out.println("I mined soup! " + rc.getSoupCarrying());
+        if (rc.senseSoup(rc.getLocation()) > 0)
+            saveMap.put(rc.getLocation(),1);
+        else
+            saveMap.put(rc.getLocation(),0);
+        boolean moved = false;
+        for (Direction dir:directions) {
+            MapLocation adjLocation = rc.adjacentLocation(dir);
+            if (saveMap.get(adjLocation)==null && !rc.senseFlooding(adjLocation)) {
+                tryMove(dir);
+                moved = true;
+                break;
+            }
+        }
+        if (!moved)
+        {
+            MapLocation goal = new MapLocation(1000,1000);
+            for (int i=0;i<rc.getMapWidth();i++)
+                for (int j=0;j<rc.getMapHeight();j++) {
+                    MapLocation cell = new MapLocation(i,j);
+                    if (saveMap.get(cell) == null && distance(goal, rc.getLocation()) > distance(cell,rc.getLocation()))
+                        goal=cell;
+                }
+            Direction dirGoal = directions[0];
+            for (Direction dir:directions)
+                if (distance(goal,rc.adjacentLocation(dir)) < distance(goal,rc.adjacentLocation(dirGoal)))
+                    dirGoal = dir;
+            tryMove(dirGoal);
+        }
     }
 
     static void runRefinery() throws GameActionException {
@@ -166,6 +189,7 @@ public strictfp class RobotPlayer {
      */
     static boolean tryMove(Direction dir) throws GameActionException {
         // System.out.println("I am trying to move " + dir + "; " + rc.isReady() + " " + rc.getCooldownTurns() + " " + rc.canMove(dir));
+
         if (rc.isReady() && rc.canMove(dir)) {
             rc.move(dir);
             return true;
