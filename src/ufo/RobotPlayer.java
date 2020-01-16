@@ -14,16 +14,11 @@ public strictfp class RobotPlayer {
     }
 
     enum Cell {
+        NOT_DISCOVERED,
         NOTHING,
         SOUP,
-        FLOOD,
-        COW,
-        MINER,
-        LANDSCAPER,
-        DELIVERY_DRONE,
         HQ,
         REFINERY,
-        VAPORATOR,
         DESIGN_SCHOOL,
         FULFILLMENT_CENTER,
         NET_GUN;
@@ -41,10 +36,6 @@ public strictfp class RobotPlayer {
             Direction.NORTH,
             Direction.NORTHEAST,
     };
-
-    static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
-            RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
-
 
     static RobotController rc;
 
