@@ -1,20 +1,16 @@
 package ufo;
 
 import battlecode.common.*;
-import com.sun.tools.javac.util.Pair;
 
-import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Random;
 
 public strictfp class RobotPlayer {
+    static Random rand = new Random();
 
     enum State {
         NO_STATE,
-        FIND_SOUP,
-        FIND_HEADQUARTER,
-        BUILD_REFINERY,
-        BUILD_DESIGN_SCHOOL,
-        MINE_SOUP,
+        MINER_EXPLORE,
     }
 
     static class Cell{
@@ -47,16 +43,16 @@ public strictfp class RobotPlayer {
 
     static Cell[][] cells;
 
-    static ArrayList< Pair<Integer, Integer> > neighbours = new ArrayList<>();
+    static ArrayList< MapLocation > neighbours = new ArrayList<>();
 
     //Helpers:
 
     static boolean isBuilding(RobotType robotType){
-        return (robotType == RobotType.DESIGN_SCHOOL ||
-            robotType == RobotType.FULFILLMENT_CENTER ||
-            robotType == RobotType.VAPORATOR ||
-            robotType == RobotType.REFINERY ||
-            robotType == RobotType.HQ);
+        return (robotType == RobotType.DESIGN_SCHOOL
+            || robotType == RobotType.FULFILLMENT_CENTER
+            || robotType == RobotType.VAPORATOR
+            || robotType == RobotType.REFINERY
+            || robotType == RobotType.HQ);
     }
 
     static void setCell(MapLocation mapLocation, Cell cell) {
@@ -76,7 +72,7 @@ public strictfp class RobotPlayer {
         for (int dx = -r; dx <= r; dx++)
             for (int dy = -r; dy <= r; dy++)
                 if (dx * dx + dy * dy <= r)
-                    neighbours.add(new Pair<>(dx, dy));
+                    neighbours.add(new MapLocation(dx, dy));
     }
 
     public static void run(RobotController rc) throws GameActionException {
@@ -100,6 +96,7 @@ public strictfp class RobotPlayer {
         while (true) {
             turnCount += 1;
             try {
+                senseNeighbours();
                 switch (rc.getType()) {
                     case HQ:
                         runHQ();
@@ -139,8 +136,8 @@ public strictfp class RobotPlayer {
     }
 
     static void senseNeighbours() throws GameActionException {
-        for (Pair<Integer, Integer> d : neighbours) {
-            MapLocation loc = rc.getLocation().translate(d.fst, d.snd);
+        for (MapLocation d : neighbours) {
+            MapLocation loc = rc.getLocation().translate(d.x, d.y);
             if (rc.canSenseLocation(loc)){
                 Cell cell = getCell(loc);
                 cell.visited = true;
@@ -160,11 +157,43 @@ public strictfp class RobotPlayer {
     }
 
     static void runHQ() throws GameActionException {
-        if (turnCount == 1)
-            senseNeighbours();
+        if (rc.canBuildRobot(RobotType.MINER, Direction.NORTH))
+            rc.buildRobot(RobotType.MINER, Direction.NORTH);
     }
 
     static void runMiner() throws GameActionException {
+        if (turnCount == 1){
+            state = State.MINER_EXPLORE;
+            minerInitExplore();
+        }
+
+        switch(state){
+            case MINER_EXPLORE:
+                Direction bestDir = Direction.CENTER;
+
+                for (Direction dir: directions) {
+                    MapLocation nextLoc = rc.adjacentLocation(dir);
+                    if ( nextLoc.distanceSquaredTo(minerExploreDestination)
+                            < rc.adjacentLocation(bestDir).distanceSquaredTo(minerExploreDestination)
+                            && rc.canMove(dir)
+                            && !getCell(nextLoc).flooded) {
+                        bestDir = dir;
+                    }
+                }
+
+                if (bestDir == Direction.CENTER)
+                    minerInitExplore();
+                else
+                    rc.move(bestDir);
+
+                break;
+        }
+
+    }
+
+    static MapLocation minerExploreDestination;
+    private static void minerInitExplore() {
+        minerExploreDestination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
     }
 
     static void runRefinery() throws GameActionException {
