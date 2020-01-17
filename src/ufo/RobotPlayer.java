@@ -6,17 +6,19 @@ import java.util.ArrayList;
 import java.util.Random;
 
 public strictfp class RobotPlayer {
-    static Random rand = new Random();
+    static Random rand;
 
     enum State {
         NO_STATE,
         MINER_EXPLORE,
+        MINER_RETURN, MINER_SOUP
     }
 
-    static class Cell{
+    static class Cell {
         boolean flooded, visited;
-        RobotType building;
+        RobotType robot;
         int elevation, soup;
+        int last_ignore = -1000;
     }
 
     static Direction[] directions = {
@@ -42,25 +44,19 @@ public strictfp class RobotPlayer {
     static int turnCount;
 
     static Cell[][] cells;
-
-    static ArrayList< MapLocation > neighbours = new ArrayList<>();
+    static final int shift = 10;
+    static MapLocation[] neighbours = new MapLocation[200];
+    static int sizeNeighbours;
+    static ArrayList<MapLocation> history = new ArrayList<>();
 
     //Helpers:
-
-    static boolean isBuilding(RobotType robotType){
-        return (robotType == RobotType.DESIGN_SCHOOL
-            || robotType == RobotType.FULFILLMENT_CENTER
-            || robotType == RobotType.VAPORATOR
-            || robotType == RobotType.REFINERY
-            || robotType == RobotType.HQ);
-    }
 
     static void setCell(MapLocation mapLocation, Cell cell) {
         cells[mapLocation.x][mapLocation.y] = cell;
     }
 
     static Cell getCell(MapLocation mapLocation) {
-        return cells[mapLocation.x][mapLocation.y];
+        return cells[mapLocation.x + shift][mapLocation.y + shift];
     }
 
     static int distance(MapLocation a, MapLocation b) {
@@ -68,32 +64,42 @@ public strictfp class RobotPlayer {
     }
 
     private static void getNeighbours() {
-        int r = rc.getType().sensorRadiusSquared;
+        int r = (int) Math.sqrt(rc.getType().sensorRadiusSquared) + 2;
         for (int dx = -r; dx <= r; dx++)
             for (int dy = -r; dy <= r; dy++)
-                if (dx * dx + dy * dy <= r)
-                    neighbours.add(new MapLocation(dx, dy));
+                if (dx * dx + dy * dy <= rc.getType().sensorRadiusSquared)
+                    neighbours[sizeNeighbours++] = new MapLocation(dx, dy);
     }
 
     public static void run(RobotController rc) throws GameActionException {
+        rand = new Random(rc.getID() );
         RobotPlayer.rc = rc;
         turnCount = 0;
 
-        cells = new Cell[rc.getMapWidth()][rc.getMapHeight()];
-        for (int i = 0; i < rc.getMapWidth(); i++)
-            for (int j = 0; j < rc.getMapHeight(); j++) {
+//        System.out.println("begin init");
+
+        cells = new Cell[rc.getMapWidth()+shift*2][rc.getMapHeight()+shift*2];
+        for (int i = shift; i < rc.getMapWidth() + shift; i++)
+            for (int j = shift; j < rc.getMapHeight() + shift; j++) {
                 cells[i][j] = new Cell();
             }
 
+//        System.out.println("end init");
+
         try {
+            /*if (rc.getID() == 11611)
+                System.out.println("I started scan");*/
             getNeighbours();
-        }catch(Exception e){
+            /*if (rc.getID() == 11611)
+                System.out.println("I finished scan");*/
+        } catch (Exception e) {
             System.out.println(rc.getType() + " Exception");
             e.printStackTrace();
         }
 
-
         while (true) {
+            /*if (rc.getID() == 11611)
+                System.out.println("I'm 11611");*/
             turnCount += 1;
             try {
                 senseNeighbours();
@@ -136,64 +142,125 @@ public strictfp class RobotPlayer {
     }
 
     static void senseNeighbours() throws GameActionException {
-        for (MapLocation d : neighbours) {
+        for (int i = 0; i < sizeNeighbours; i++) {
+            MapLocation d = neighbours[i];
             MapLocation loc = rc.getLocation().translate(d.x, d.y);
-            if (rc.canSenseLocation(loc)){
+            if (rc.canSenseLocation(loc)) {
                 Cell cell = getCell(loc);
                 cell.visited = true;
+//                System.out.println(loc+" "+rc.canSenseLocation(loc));
                 cell.elevation = rc.senseElevation(loc);
                 cell.flooded = rc.senseFlooding(loc);
                 cell.soup = rc.senseSoup(loc);
             }
         }
-
-        for (RobotInfo info : rc.senseNearbyRobots())
-            if (info.getTeam() != rc.getTeam() && info.getTeam() != Team.NEUTRAL && isBuilding(info.getType())){
-                getCell(info.getLocation()).building = info.getType();
+        RobotInfo[] nearbyInfo = rc.senseNearbyRobots();
+        for (int i = 0; i < nearbyInfo.length; i++) {
+            RobotInfo info = nearbyInfo[i];
+            getCell(info.getLocation()).robot = info.getType();
                 /*if (info.getType() == RobotType.HQ) {
                     found enemy HQ
                 }*/
-            }
+        }
     }
 
     static void runHQ() throws GameActionException {
         if (rc.canBuildRobot(RobotType.MINER, Direction.NORTH))
             rc.buildRobot(RobotType.MINER, Direction.NORTH);
     }
+    static boolean backToHome = false;
 
     static void runMiner() throws GameActionException {
-        if (turnCount == 1){
+        if (turnCount == 1) {
             state = State.MINER_EXPLORE;
             minerInitExplore();
         }
-
-        switch(state){
-            case MINER_EXPLORE:
-                Direction bestDir = Direction.CENTER;
-
-                for (Direction dir: directions) {
-                    MapLocation nextLoc = rc.adjacentLocation(dir);
-                    if ( nextLoc.distanceSquaredTo(minerExploreDestination)
-                            < rc.adjacentLocation(bestDir).distanceSquaredTo(minerExploreDestination)
-                            && rc.canMove(dir)
-                            && !getCell(nextLoc).flooded) {
-                        bestDir = dir;
-                    }
+        if (state == State.MINER_EXPLORE && rc.isReady()) {
+            MapLocation soup = getASoup();
+            if (soup != null) {
+                minerDestination = soup;
+                if (rc.canMineSoup(rc.getLocation().directionTo(soup))) {
+                    state = State.MINER_SOUP;
+                    backToHome = false;
                 }
-
-                if (bestDir == Direction.CENTER)
+            }
+            if (rc.getSoupCarrying() > 0 && soup == null || rc.getSoupCarrying() == RobotType.MINER.soupLimit) {
+                for (Direction dir : directions)
+                    if (rc.canDepositSoup(dir)) {
+                        rc.depositSoup(dir, rc.getSoupCarrying());
+                        backToHome = false;
+                        history.clear();
+                        history.add(rc.getLocation());
+                        return;
+                    }
+                backToHome = true;
+                MapLocation desire = history.get(history.size() - 1);
+                if (getCell(desire).last_ignore > turnCount) {
+                    if (history.size() != 1) {
+                        for (int i=0;i<5 && history.size() >= 2;i++)
+                            history.remove(history.size() - 1);
+                        desire = history.get(history.size() - 1);
+                    }
+                    else desire = minerDestination;
+                }
+                minerDestination = desire;
+            }
+            if (state == State.MINER_EXPLORE && rc.isReady()) {
+                Direction dir = moveTowards(minerDestination);
+                if (dir == Direction.CENTER) {
+                    getCell(minerDestination).last_ignore = turnCount + (int) Math.sqrt(rc.getType().sensorRadiusSquared * (rc.getCooldownTurns() + 1)) + 4;
                     minerInitExplore();
-                else
-                    rc.move(bestDir);
-
-                break;
+                } else {
+                    if (!backToHome)
+                        history.add(rc.getLocation());
+                    rc.move(dir);
+                }
+            }
         }
 
+        if (state == State.MINER_SOUP && rc.isReady()) {
+            Direction dir = rc.getLocation().directionTo(minerDestination);
+            if (rc.canMineSoup(dir))
+                rc.mineSoup(dir);
+            else
+                state = State.MINER_EXPLORE;
+        }
     }
 
-    static MapLocation minerExploreDestination;
+    private static Direction moveTowards(MapLocation dest) {
+        Direction bestDir = Direction.CENTER;
+
+        for (Direction dir : directions) {
+            MapLocation nextLoc = rc.adjacentLocation(dir);
+            if (nextLoc.distanceSquaredTo(dest)
+                    < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
+                    && rc.canMove(dir)
+                    && !getCell(nextLoc).flooded) {
+                bestDir = dir;
+            }
+        }
+
+        return bestDir;
+    }
+
+    private static MapLocation getASoup() {
+        MapLocation ret = null;
+        MapLocation soups[] = rc.senseNearbySoup();
+        for (int i = 0; i < soups.length; i++) {
+            MapLocation loc = soups[i];
+            Cell cell = getCell(loc);
+            if (cell.last_ignore < turnCount && (ret == null
+                    || ret.distanceSquaredTo(rc.getLocation()) > loc.distanceSquaredTo(rc.getLocation())))
+                ret = loc;
+        }
+
+        return ret;
+    }
+
+    static MapLocation minerDestination;
+
     private static void minerInitExplore() {
-        minerExploreDestination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
+        minerDestination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
     }
 
     static void runRefinery() throws GameActionException {
