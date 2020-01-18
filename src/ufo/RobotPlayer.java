@@ -48,6 +48,7 @@ public strictfp class RobotPlayer {
     static MapLocation[] neighbours = new MapLocation[200];
     static int sizeNeighbours;
     static ArrayList<MapLocation> history = new ArrayList<>();
+    static ArrayList<MapLocation> preferred = new ArrayList<>();
 
     //Helpers:
 
@@ -72,13 +73,13 @@ public strictfp class RobotPlayer {
     }
 
     public static void run(RobotController rc) throws GameActionException {
-        rand = new Random(rc.getID() );
+        rand = new Random(rc.getID());
         RobotPlayer.rc = rc;
         turnCount = 0;
 
 //        System.out.println("begin init");
 
-        cells = new Cell[rc.getMapWidth()+shift*2][rc.getMapHeight()+shift*2];
+        cells = new Cell[rc.getMapWidth() + shift * 2][rc.getMapHeight() + shift * 2];
         for (int i = shift; i < rc.getMapWidth() + shift; i++)
             for (int j = shift; j < rc.getMapHeight() + shift; j++) {
                 cells[i][j] = new Cell();
@@ -168,6 +169,7 @@ public strictfp class RobotPlayer {
         if (rc.canBuildRobot(RobotType.MINER, Direction.NORTH))
             rc.buildRobot(RobotType.MINER, Direction.NORTH);
     }
+
     static boolean backToHome = false;
 
     static void runMiner() throws GameActionException {
@@ -180,6 +182,8 @@ public strictfp class RobotPlayer {
             if (soup != null) {
                 minerDestination = soup;
                 if (rc.canMineSoup(rc.getLocation().directionTo(soup))) {
+                    okToUsePreferred = false;
+                    preferred.clear();
                     state = State.MINER_SOUP;
                     backToHome = false;
                 }
@@ -188,22 +192,41 @@ public strictfp class RobotPlayer {
                 for (Direction dir : directions)
                     if (rc.canDepositSoup(dir)) {
                         rc.depositSoup(dir, rc.getSoupCarrying());
+                        okToUsePreferred = true;
                         backToHome = false;
                         history.clear();
                         history.add(rc.getLocation());
                         return;
                     }
-                backToHome = true;
-                MapLocation desire = history.get(history.size() - 1);
-                if (getCell(desire).last_ignore > turnCount) {
-                    if (history.size() != 1) {
-                        for (int i=0;i<5 && history.size() >= 2;i++)
-                            history.remove(history.size() - 1);
-                        desire = history.get(history.size() - 1);
-                    }
-                    else desire = minerDestination;
+
+                RobotInfo[] robots = rc.senseNearbyRobots();
+                MapLocation refinery = null;
+                for (RobotInfo robot : robots)
+                    if (robot.type == RobotType.REFINERY && robot.team == rc.getTeam())
+                        refinery = robot.getLocation();
+
+                if (refinery == null && rc.getTeamSoup() > 750 && rc.senseNearbySoup().length > 5 ) {
+                    for (Direction direction : directions)
+                        if (rc.canBuildRobot(RobotType.REFINERY, direction)) {
+                            rc.buildRobot(RobotType.REFINERY, direction);
+                            return;
+                        }
                 }
-                minerDestination = desire;
+
+                if (refinery == null) {
+                    backToHome = true;
+                    MapLocation pathToHQ = history.get(history.size() - 1);
+                    if (getCell(pathToHQ).last_ignore > turnCount) {
+                        if (history.size() != 1) {
+                            for (int i = 0; i < 5 && history.size() >= 2; i++)
+                                history.remove(history.size() - 1);
+                            pathToHQ = history.get(history.size() - 1);
+                            preferred.add(pathToHQ);
+                        } else pathToHQ = minerDestination;
+                    }
+                    minerDestination = pathToHQ;
+                }
+                else minerDestination = refinery;
             }
             if (state == State.MINER_EXPLORE && rc.isReady()) {
                 Direction dir = moveTowards(minerDestination);
@@ -258,9 +281,14 @@ public strictfp class RobotPlayer {
     }
 
     static MapLocation minerDestination;
+    static boolean okToUsePreferred = false;
 
     private static void minerInitExplore() {
-        minerDestination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
+        if (okToUsePreferred && preferred.size() > 0) {
+            minerDestination = preferred.get(preferred.size() - 1);
+            preferred.remove(preferred.size() - 1);
+            System.out.println("az in ja raftama");
+        } else minerDestination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
     }
 
     static void runRefinery() throws GameActionException {
