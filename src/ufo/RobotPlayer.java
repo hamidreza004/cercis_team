@@ -11,7 +11,9 @@ public strictfp class RobotPlayer {
     enum State {
         NO_STATE,
         MINER_EXPLORE,
-        MINER_RETURN, MINER_SOUP
+        MINER_RETURN,
+        BUILD,
+        MINER_SOUP
     }
 
     static class Cell {
@@ -165,16 +167,18 @@ public strictfp class RobotPlayer {
         }
     }
 
-    static int numberOfMiners = 0;
+    static int numberOfMiners = 0, lastMinerCreatedTurn = 0;
     static final int soupSaveTurns = 4;
     static int lastTurnSoup[] = new int[soupSaveTurns];
 
+
     static void runHQ() throws GameActionException {
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        if (numberOfMiners < 10 || differenceSoup > RobotType.MINER.cost * 3 / 2)
+        if (numberOfMiners < 10 || differenceSoup > RobotType.MINER.cost * 3 / 2 || turnCount - lastMinerCreatedTurn > 80)
             for (Direction direction : directions)
                 if (rc.canBuildRobot(RobotType.MINER, direction)) {
                     rc.buildRobot(RobotType.MINER, direction);
+                    lastMinerCreatedTurn = turnCount;
                     numberOfMiners++;
                 }
         for (int i = 0; i < soupSaveTurns - 1; i++)
@@ -184,11 +188,46 @@ public strictfp class RobotPlayer {
 
     static boolean backToHome = false;
 
+    static MapLocation HQ_Save = null;
+
     static void runMiner() throws GameActionException {
         if (turnCount == 1) {
-            state = State.MINER_EXPLORE;
-            minerInitExplore();
+            if (rc.getTeamSoup() > 500) {
+                for (Direction direction : directions) {
+                    MapLocation loc = rc.adjacentLocation(direction);
+                    if (rc.canSenseLocation(loc)) {
+                        RobotInfo robotInfo = rc.senseRobotAtLocation(loc);
+                        if (robotInfo != null && robotInfo.team == rc.getTeam() && robotInfo.type == RobotType.HQ) {
+                            state = State.BUILD;
+                            HQ_Save = loc;
+                        }
+                    }
+
+                }
+            }
+            if (state != State.BUILD) {
+                state = State.MINER_EXPLORE;
+                minerInitExplore();
+            }
         }
+
+        if (state == State.BUILD) {
+            RobotInfo[] robots = rc.senseNearbyRobots();
+            for (RobotInfo robot : robots)
+                if (robot.type == RobotType.DESIGN_SCHOOL && robot.team == rc.getTeam()) {
+                    state = State.MINER_EXPLORE;
+                    minerInitExplore();
+                }
+            if (state == State.BUILD)
+                for (Direction direction : directions) {
+                    MapLocation loc = rc.adjacentLocation(direction);
+                    if (loc.isAdjacentTo(HQ_Save) && rc.canBuildRobot(RobotType.DESIGN_SCHOOL, direction)) {
+                        rc.buildRobot(RobotType.DESIGN_SCHOOL, direction);
+                        break;
+                    }
+                }
+        }
+
         if (state == State.MINER_EXPLORE && rc.isReady()) {
             MapLocation soup = getASoup();
             if (soup != null) {
@@ -303,7 +342,6 @@ public strictfp class RobotPlayer {
         if (okToUsePreferred && preferred.size() > 0) {
             minerDestination = preferred.get(preferred.size() - 1);
             preferred.remove(preferred.size() - 1);
-            System.out.println("az in ja raftama");
         } else minerDestination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
     }
 
