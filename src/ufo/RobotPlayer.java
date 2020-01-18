@@ -165,9 +165,21 @@ public strictfp class RobotPlayer {
         }
     }
 
+    static int numberOfMiners = 0;
+    static final int soupSaveTurns = 4;
+    static int lastTurnSoup[] = new int[soupSaveTurns];
+
     static void runHQ() throws GameActionException {
-        if (rc.canBuildRobot(RobotType.MINER, Direction.NORTH))
-            rc.buildRobot(RobotType.MINER, Direction.NORTH);
+        int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
+        if (numberOfMiners < 10 || differenceSoup > RobotType.MINER.cost * 3 / 2)
+            for (Direction direction : directions)
+                if (rc.canBuildRobot(RobotType.MINER, direction)) {
+                    rc.buildRobot(RobotType.MINER, direction);
+                    numberOfMiners++;
+                }
+        for (int i = 0; i < soupSaveTurns - 1; i++)
+            lastTurnSoup[i] = lastTurnSoup[i + 1];
+        lastTurnSoup[soupSaveTurns - 1] = rc.getTeamSoup();
     }
 
     static boolean backToHome = false;
@@ -205,7 +217,12 @@ public strictfp class RobotPlayer {
                     if (robot.type == RobotType.REFINERY && robot.team == rc.getTeam())
                         refinery = robot.getLocation();
 
-                if (refinery == null && rc.getTeamSoup() > 750 && rc.senseNearbySoup().length > 5 ) {
+                MapLocation[] soups = rc.senseNearbySoup();
+                int soupSum = 0;
+                for (MapLocation soupTmp : soups)
+                    soupSum += rc.senseSoup(soupTmp);
+
+                if (refinery == null && rc.getTeamSoup() > 750 && soupSum > 500) {
                     for (Direction direction : directions)
                         if (rc.canBuildRobot(RobotType.REFINERY, direction)) {
                             rc.buildRobot(RobotType.REFINERY, direction);
@@ -225,8 +242,7 @@ public strictfp class RobotPlayer {
                         } else pathToHQ = minerDestination;
                     }
                     minerDestination = pathToHQ;
-                }
-                else minerDestination = refinery;
+                } else minerDestination = refinery;
             }
             if (state == State.MINER_EXPLORE && rc.isReady()) {
                 Direction dir = moveTowards(minerDestination);
