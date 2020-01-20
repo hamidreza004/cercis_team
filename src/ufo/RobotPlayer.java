@@ -736,6 +736,8 @@ public strictfp class RobotPlayer {
                 }
             if (rc.canMove(bestDir))
                 rc.move(bestDir);
+            if (destination.isAdjacentTo(rc.getLocation()))
+                rc.pickUpUnit(rc.senseRobotAtLocation(destination).getID());
         }
     }
 
