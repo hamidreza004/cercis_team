@@ -2,6 +2,7 @@ package ufo;
 
 import battlecode.common.*;
 
+import javax.naming.directory.DirContext;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -335,7 +336,7 @@ public strictfp class RobotPlayer {
         }
     }
 
-    private static Direction landScaperMoveTowards(MapLocation dest) throws GameActionException {
+    private static Direction landscaperMoveTowards(MapLocation dest) throws GameActionException {
         Direction bestDir = Direction.CENTER;
 
         for (Direction dir : directions) {
@@ -345,6 +346,21 @@ public strictfp class RobotPlayer {
                     < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
                     && hamiltonianDistance(defenceOrigin, nextLoc) <= defenceRadius
                     && robot == null) {
+                bestDir = dir;
+            }
+        }
+
+        return bestDir;
+    }
+
+    private static Direction DroneMoveTowards(MapLocation dest) throws GameActionException {
+        Direction bestDir = Direction.CENTER;
+
+        for (Direction dir : directions) {
+            MapLocation nextLoc = rc.adjacentLocation(dir);
+            if (nextLoc.distanceSquaredTo(dest)
+                    < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
+                    && rc.canMove(dir)) {
                 bestDir = dir;
             }
         }
@@ -388,7 +404,7 @@ public strictfp class RobotPlayer {
         if (okToUsePreferred && preferred.size() > 0) {
             destination = preferred.get(preferred.size() - 1);
             preferred.remove(preferred.size() - 1);
-        } else destination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
+        } else randomDestination();
     }
 
     static void runRefinery() throws GameActionException {
@@ -650,7 +666,7 @@ public strictfp class RobotPlayer {
                     if (rc.canDigDirt(defenceDirection))
                         rc.digDirt(defenceDirection);
                 } else {
-                    Direction dir = landScaperMoveTowards(defencePosition);
+                    Direction dir = landscaperMoveTowards(defencePosition);
 //                    System.out.println(defencePosition + " ,,,, " + dir +  " ::: "
 //                            + hamiltonianDistance(rc.getLocation().add(dir), defenceOrigin));
                     if (dir == Direction.CENTER) return;
@@ -720,18 +736,21 @@ public strictfp class RobotPlayer {
     static void runDeliveryDrone() throws GameActionException {
         if (turnCount == 1)
             baseDeliveryDrone = rc.getLocation();
-        for (RobotInfo robot : robots)
-            if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.HQ) {
-                for (Direction direction : directions) {
-                    RobotInfo enemy = rc.senseRobotAtLocation(robot.getLocation().add(direction));
-                    if (enemy == null)
-                        continue;
-                    if (enemy.getTeam() != rc.getTeam() || enemy.getType() == RobotType.MINER) {
-                        state = State.DRONE_EXPLORE;
-                        destination = enemy.getLocation();
+        if (state != State.DROP_FRIEND || state != State.DROP_ENEMY)
+            for (RobotInfo robot : robots)
+                if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.HQ) {
+                    for (Direction direction : directions) {
+                        if (!rc.canSenseLocation(robot.getLocation().add(direction)))
+                            continue;
+                        RobotInfo enemy = rc.senseRobotAtLocation(robot.getLocation().add(direction));
+                        if (enemy == null)
+                            continue;
+                        if (enemy.getTeam() != rc.getTeam() || enemy.getType() == RobotType.MINER) {
+                            state = State.DRONE_EXPLORE;
+                            destination = enemy.getLocation();
+                        }
                     }
                 }
-            }
         if (state == State.DRONE_EXPLORE) {
             Direction bestDir = Direction.CENTER;
             for (Direction direction : directions)
@@ -742,8 +761,9 @@ public strictfp class RobotPlayer {
                 rc.move(bestDir);
             if (destination.isAdjacentTo(rc.getLocation())) {
                 RobotInfo robot = rc.senseRobotAtLocation(destination);
-                if (rc.canPickUpUnit(robot.getID())) {
+                if (robot != null && (robot.getTeam() != rc.getTeam() || robot.getType() == RobotType.MINER) && rc.canPickUpUnit(robot.getID())) {
                     rc.pickUpUnit(robot.getID());
+                    randomDestination();
                     if (robot.getTeam() == rc.getTeam())
                         state = State.DROP_FRIEND;
                     else
@@ -751,21 +771,26 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        if (state == State.DROP_ENEMY || state == State.DROP_FRIEND)
-        {
-            destination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
-            if (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 15) {
+        if (state == State.DROP_ENEMY || state == State.DROP_FRIEND) {
+            if (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 50) {
                 for (Direction direction : directions)
-                    if (rc.canDropUnit(direction))
-                    {
+                    if (rc.canDropUnit(direction)) {
                         rc.dropUnit(direction);
+                        state = State.DRONE_EXPLORE;
                         break;
                     }
             }
-            Direction dir = rc.getLocation().directionTo(destination);
+
+            Direction dir = DroneMoveTowards(destination);
             if (rc.canMove(dir))
                 rc.move(dir);
+            if (dir == Direction.CENTER)
+                randomDestination();
         }
+    }
+
+    static void randomDestination() {
+        destination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
     }
 
     static void runNetGun() throws GameActionException {
