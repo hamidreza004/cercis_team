@@ -13,7 +13,11 @@ public strictfp class RobotPlayer {
         MINER_EXPLORE,
         MINER_RETURN,
         BUILD,
-        DESIGNSCHOOL_DEFEND, LANDSCAPER_DEFEND, UNKNOWN, MINER_SOUP
+        DESIGNSCHOOL_DEFEND,
+        LANDSCAPER_DEFEND,
+        UNKNOWN,
+        MINER_SOUP,
+        DRONE_EXPLORE
     }
 
     static class Cell {
@@ -45,7 +49,7 @@ public strictfp class RobotPlayer {
 
     static int turnCount;
 
-//    static Cell[][] cells;
+    //    static Cell[][] cells;
     static int[][] last_ignore;
     static final int shift = 10;
     static MapLocation[] neighbours = new MapLocation[200];
@@ -55,8 +59,13 @@ public strictfp class RobotPlayer {
 
     //Helpers:
 
-    static int getLastIgnore(MapLocation mapLocation){return last_ignore[mapLocation.x + shift][mapLocation.y + shift];}
-    static void setLastIgnore(MapLocation mapLocation, int val){last_ignore[mapLocation.x + shift][mapLocation.y + shift] = val;}
+    static int getLastIgnore(MapLocation mapLocation) {
+        return last_ignore[mapLocation.x + shift][mapLocation.y + shift];
+    }
+
+    static void setLastIgnore(MapLocation mapLocation, int val) {
+        last_ignore[mapLocation.x + shift][mapLocation.y + shift] = val;
+    }
 
 /*
     static void setCell(MapLocation mapLocation, Cell cell) {
@@ -192,9 +201,10 @@ public strictfp class RobotPlayer {
     static MapLocation HQ_Save = null;
 
     private static int lastSoupAction;
+
     static void runMiner() throws GameActionException {
         if (state == State.UNKNOWN) {
-            if (rc.getTeamSoup() > 500){
+            if (rc.getTeamSoup() > 500) {
                 for (Direction direction : directions) {
                     MapLocation loc = rc.adjacentLocation(direction);
                     if (rc.canSenseLocation(loc)) {
@@ -214,25 +224,30 @@ public strictfp class RobotPlayer {
         }
 
         if (state == State.BUILD) {
+            boolean isThereDesignSchool = false, isThereFulfillmentCenter = false;
             for (RobotInfo robot : robots)
-                if (robot.type == RobotType.DESIGN_SCHOOL && robot.team == rc.getTeam()) {
-                    state = State.MINER_EXPLORE;
-                    minerInitExplore();
+                if (robot.team == rc.getTeam()) {
+                    if (robot.type == RobotType.DESIGN_SCHOOL)
+                        isThereDesignSchool = true;
+                    if (robot.type == RobotType.FULFILLMENT_CENTER)
+                        isThereFulfillmentCenter = true;
                 }
+            if (isThereDesignSchool && isThereFulfillmentCenter) {
+                state = State.MINER_EXPLORE;
+                minerInitExplore();
+            }
 
             if (state == State.BUILD) {
                 for (Direction direction : directions) {
                     MapLocation loc = rc.adjacentLocation(direction);
-                    if (hamiltonianDistance(loc, HQ_Save) == 1 && rc.canBuildRobot(RobotType.DESIGN_SCHOOL, direction)) {
-                        rc.buildRobot(RobotType.DESIGN_SCHOOL, direction);
-                        break;
-                    }
-                }
-                for (Direction direction : directions) {
-                    MapLocation loc = rc.adjacentLocation(direction);
-                    if (loc.isAdjacentTo(HQ_Save) && rc.canBuildRobot(RobotType.DESIGN_SCHOOL, direction)) {
-                        rc.buildRobot(RobotType.DESIGN_SCHOOL, direction);
-                        break;
+                    if (hamiltonianDistance(loc, HQ_Save) == 1) {
+                        if (!isThereDesignSchool && rc.canBuildRobot(RobotType.DESIGN_SCHOOL, direction)) {
+                            rc.buildRobot(RobotType.DESIGN_SCHOOL, direction);
+                            break;
+                        } else if (!isThereFulfillmentCenter && rc.canBuildRobot(RobotType.FULFILLMENT_CENTER, direction)) {
+                            rc.buildRobot(RobotType.FULFILLMENT_CENTER, direction);
+                            break;
+                        }
                     }
                 }
             }
@@ -241,7 +256,7 @@ public strictfp class RobotPlayer {
         if (state == State.MINER_EXPLORE && rc.isReady()) {
             MapLocation soup = getASoup();
             if (soup != null) {
-                minerDestination = soup;
+                destination = soup;
                 if (rc.canMineSoup(rc.getLocation().directionTo(soup))) {
                     okToUsePreferred = false;
                     preferred.clear();
@@ -251,7 +266,7 @@ public strictfp class RobotPlayer {
             }
             if (rc.getSoupCarrying() > 0 && soup == null || rc.getSoupCarrying() == RobotType.MINER.soupLimit) {
                 for (Direction dir : directions)
-                    if (rc.canDepositSoup(dir)) {
+                    if (rc.canDepositSoup(dir) && rc.senseRobotAtLocation(rc.adjacentLocation(dir)).getTeam() == rc.getTeam()) {
                         rc.depositSoup(dir, rc.getSoupCarrying());
                         lastSoupAction = turnCount;
                         okToUsePreferred = true;
@@ -270,9 +285,9 @@ public strictfp class RobotPlayer {
                 for (MapLocation soupTmp : soups)
                     soupSum += rc.senseSoup(soupTmp);
 
-                if (rc.getTeamSoup() > 350 &&
+                if (rc.getTeamSoup() > 300 &&
                         ((lastSoupAction < turnCount - 50 && rc.getTeamSoup() > 450)
-                        || soupSum > 500 && refinery == null && getNearbyHQ() == null)) {
+                                || soupSum > 500 && refinery == null && getNearbyHQ() == null)) {
                     for (Direction direction : directions)
                         if (rc.canBuildRobot(RobotType.REFINERY, direction)) {
                             rc.buildRobot(RobotType.REFINERY, direction);
@@ -289,15 +304,15 @@ public strictfp class RobotPlayer {
                                 history.remove(history.size() - 1);
                             pathToHQ = history.get(history.size() - 1);
                             preferred.add(pathToHQ);
-                        } else pathToHQ = minerDestination;
+                        } else pathToHQ = destination;
                     }
-                    minerDestination = pathToHQ;
-                } else minerDestination = refinery;
+                    destination = pathToHQ;
+                } else destination = refinery;
             }
             if (state == State.MINER_EXPLORE && rc.isReady()) {
-                Direction dir = moveTowards(minerDestination);
+                Direction dir = moveTowards(destination);
                 if (dir == Direction.CENTER) {
-                    setLastIgnore(minerDestination, turnCount + (int) Math.sqrt(rc.getType().sensorRadiusSquared * (rc.getCooldownTurns() + 1)) + 4);
+                    setLastIgnore(destination, turnCount + (int) Math.sqrt(rc.getType().sensorRadiusSquared * (rc.getCooldownTurns() + 1)) + 4);
                     minerInitExplore();
                 } else {
                     if (!backToHome)
@@ -308,11 +323,11 @@ public strictfp class RobotPlayer {
         }
 
         if (state == State.MINER_SOUP && rc.isReady()) {
-            Direction dir = rc.getLocation().directionTo(minerDestination);
+            Direction dir = rc.getLocation().directionTo(destination);
             if (rc.canMineSoup(dir)) {
                 rc.mineSoup(dir);
                 lastSoupAction = turnCount;
-            }else
+            } else
                 state = State.MINER_EXPLORE;
         }
     }
@@ -363,14 +378,14 @@ public strictfp class RobotPlayer {
         return ret;
     }
 
-    static MapLocation minerDestination;
+    static MapLocation destination;
     static boolean okToUsePreferred = false;
 
     private static void minerInitExplore() {
         if (okToUsePreferred && preferred.size() > 0) {
-            minerDestination = preferred.get(preferred.size() - 1);
+            destination = preferred.get(preferred.size() - 1);
             preferred.remove(preferred.size() - 1);
-        } else minerDestination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
+        } else destination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
     }
 
     static void runRefinery() throws GameActionException {
@@ -397,7 +412,7 @@ public strictfp class RobotPlayer {
                         return loc;
                 }
             }
-        }catch (GameActionException e){
+        } catch (GameActionException e) {
             System.out.println(rc.getType() + " GameActionException");
             e.printStackTrace();
         }
@@ -405,26 +420,27 @@ public strictfp class RobotPlayer {
     }
 
     static final int defenceRadius = 3;
-    static int defendingRobotsNumber, extraLandscapers=1;
+    static int defendingRobotsNumber, extraLandscapers = 1;
     static MapLocation defenceOrigin, defencePosition;
     static MapLocation[] defencePositions = new MapLocation[4 * defenceRadius];
     static Direction defenceDirection;
     static boolean positionFull[] = new boolean[4 * defenceRadius];
 
     static int landScapersBuilt = 0;
+
     static void runDesignSchool() throws GameActionException {
-        if (state == State.UNKNOWN){
+        if (state == State.UNKNOWN) {
             defenceOrigin = getNearbyHQ();
             if (defenceOrigin != null) {
                 state = State.DESIGNSCHOOL_DEFEND;
 
                 defendingRobotsNumber = 0;
-                for (int dx = -defenceRadius; dx <= defenceRadius; dx++){
+                for (int dx = -defenceRadius; dx <= defenceRadius; dx++) {
                     int dy = defenceRadius - Math.abs(dx);
                     if (isOnMap(defenceOrigin.translate(dx, dy)))
                         defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
 
-                    if (dy != 0){
+                    if (dy != 0) {
                         dy = -dy;
                         if (isOnMap(defenceOrigin.translate(dx, dy)))
                             defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
@@ -435,7 +451,7 @@ public strictfp class RobotPlayer {
             }
         }
 
-        if (state == State.DESIGNSCHOOL_DEFEND){
+        if (state == State.DESIGNSCHOOL_DEFEND) {
             //int cnt = countNearbyDefense();
             int cnt = landScapersBuilt;
 
@@ -449,22 +465,31 @@ public strictfp class RobotPlayer {
         }
     }
 
-    static boolean isOnMap(MapLocation loc){
+    static boolean isOnMap(MapLocation loc) {
         return loc.x >= 0 && loc.y >= 0 && loc.x < rc.getMapWidth() && loc.y < rc.getMapHeight();
     }
 
     static void runFulfillmentCenter() throws GameActionException {
+        int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
+        if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 2.0)
+            for (Direction direction : directions)
+                if (rc.canBuildRobot(RobotType.DELIVERY_DRONE, direction)) {
+                    rc.buildRobot(RobotType.DELIVERY_DRONE, direction);
+                }
+        for (int i = 0; i < soupSaveTurns - 1; i++)
+            lastTurnSoup[i] = lastTurnSoup[i + 1];
+        lastTurnSoup[soupSaveTurns - 1] = rc.getTeamSoup();
     }
 
-    static int countNearbyDefense(){
+    static int countNearbyDefense() {
         int cnt = 0;
         for (RobotInfo robot : robots)
             if (robot.type == RobotType.LANDSCAPER && robot.team == rc.getTeam())
                 cnt++;
-         return cnt;
+        return cnt;
     }
 
-    static int hamiltonianDistance(MapLocation a, MapLocation b){
+    static int hamiltonianDistance(MapLocation a, MapLocation b) {
         return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
     }
 
@@ -477,6 +502,7 @@ public strictfp class RobotPlayer {
 */
 
     static int lastPositionChange = 0;
+
     static void runLandscaper() throws GameActionException {
         if (turnCount == 1) {
 //            floodFlag = new boolean[rc.getMapWidth() + 2*shift][rc.getMapHeight() + 2 * shift];
@@ -495,15 +521,15 @@ public strictfp class RobotPlayer {
             }
         }
 
-        if (state == State.UNKNOWN){
+        if (state == State.UNKNOWN) {
             if (defenceOrigin != null && countNearbyDefense() <= defendingRobotsNumber)
                 state = State.LANDSCAPER_DEFEND;
         }
 
 //        System.out.println("MY STATE IS " + state);
 
-        if (state == State.LANDSCAPER_DEFEND){
-            if (rc.isReady()){
+        if (state == State.LANDSCAPER_DEFEND) {
+            if (rc.isReady()) {
                 if (lastPositionChange < turnCount - 20)
                     setLastIgnore(defencePosition, turnCount);
 
@@ -559,22 +585,21 @@ public strictfp class RobotPlayer {
                         }
                     }
 */
-                    if (rc.getDirtCarrying() > 0 && rc.isReady()){
+                    if (rc.getDirtCarrying() > 0 && rc.isReady()) {
                         int dx = 0, dy = 0;
-                        if (defenceDirection.dx == 0){
+                        if (defenceDirection.dx == 0) {
                             dy = 0;
                             if (depositCount % 4 == 0)
                                 dx = 1;
                             if (depositCount % 4 == 1)
                                 dx = -1;
-                        }else if (defenceDirection.dy == 0){
+                        } else if (defenceDirection.dy == 0) {
                             dx = 0;
                             if (depositCount % 4 == 0)
                                 dy = 1;
                             if (depositCount % 4 == 1)
                                 dy = -1;
-                        }
-                        else {
+                        } else {
                             switch (depositCount % 4) {
                                 case 1:
                                     dx = defenceDirection.dx;
@@ -584,7 +609,7 @@ public strictfp class RobotPlayer {
                                     break;
                             }
                         }
-                        Direction depDir = (new MapLocation(0,0)).directionTo(new MapLocation(dx, dy));
+                        Direction depDir = (new MapLocation(0, 0)).directionTo(new MapLocation(dx, dy));
 
                         try {
                             int minElev = rc.senseElevation(rc.getLocation().add(depDir));
@@ -593,18 +618,18 @@ public strictfp class RobotPlayer {
                                 int distance = hamiltonianDistance(loc, defenceOrigin),
                                         elev = (rc.senseFlooding(loc) ? -1000 : rc.senseElevation(loc));
 
-                                if (( (distance == defenceRadius
+                                if (((distance == defenceRadius
                                         && (locationContainsDefendingLandscaper(loc) || turnCount > fixWallTurn))
                                         || (distance == defenceRadius + 1 && loc.x != defenceOrigin.x && loc.y != defenceOrigin.y)
                                         || (distance <= defenceRadius && rc.senseFlooding(loc))
-                                        /*|| getFloodFlag(loc)*/ )
-                                        && (elev < minElev)){
+                                        /*|| getFloodFlag(loc)*/)
+                                        && (elev < minElev)) {
                                     minElev = elev;
                                     depDir = dir;
                                     /*if (rc.senseFlooding(loc)) setFloodFlag(loc, true);*/
                                 }
                             }
-                        } catch(Exception e){
+                        } catch (Exception e) {
                             System.out.println(rc.getType() + " Exception");
                             e.printStackTrace();
                         }
@@ -620,7 +645,7 @@ public strictfp class RobotPlayer {
 
                     if (rc.canDigDirt(defenceDirection))
                         rc.digDirt(defenceDirection);
-                }else {
+                } else {
                     Direction dir = landScaperMoveTowards(defencePosition);
 //                    System.out.println(defencePosition + " ,,,, " + dir +  " ::: "
 //                            + hamiltonianDistance(rc.getLocation().add(dir), defenceOrigin));
@@ -632,18 +657,18 @@ public strictfp class RobotPlayer {
                     } else {
                         MapLocation nextLoc = rc.getLocation().add(dir);
                         if (rc.isReady() && rc.canSenseLocation(nextLoc)
-                                && rc.senseRobotAtLocation(nextLoc) == null){
-                            if (rc.senseElevation(rc.getLocation()) > rc.senseElevation(nextLoc)){
-                                if (rc.getDirtCarrying() > 0){
+                                && rc.senseRobotAtLocation(nextLoc) == null) {
+                            if (rc.senseElevation(rc.getLocation()) > rc.senseElevation(nextLoc)) {
+                                if (rc.getDirtCarrying() > 0) {
                                     if (rc.canDepositDirt(dir))
                                         rc.depositDirt(dir);
                                 } else {
                                     if (rc.canDigDirt(Direction.CENTER))
                                         rc.digDirt(Direction.CENTER);
                                 }
-                            }else{
+                            } else {
 //                                System.out.println("HERE **** : " + dir + " ,,, " + rc.getDirtCarrying());
-                                if (rc.getDirtCarrying() > 0){
+                                if (rc.getDirtCarrying() > 0) {
                                     if (rc.canDepositDirt(Direction.CENTER))
                                         rc.depositDirt(Direction.CENTER);
                                 } else {
@@ -667,7 +692,7 @@ public strictfp class RobotPlayer {
             return rc.getLocation();
 
         MapLocation ret = null;
-        for (int i = 0; i < defendingRobotsNumber; i++){
+        for (int i = 0; i < defendingRobotsNumber; i++) {
             MapLocation loc = defencePositions[i];
             if (locationContainsDefendingLandscaper(loc))
                 positionFull[i] = true;
@@ -687,6 +712,29 @@ public strictfp class RobotPlayer {
     }
 
     static void runDeliveryDrone() throws GameActionException {
+        for (RobotInfo robot : robots)
+            if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.HQ) {
+                for (Direction direction : directions) {
+                    RobotInfo enemy = rc.senseRobotAtLocation(robot.getLocation().add(direction));
+                    if (enemy == null)
+                        continue;
+                    if (enemy.getTeam() != rc.getTeam() || enemy.getType() == RobotType.MINER) {
+                        state = State.DRONE_EXPLORE;
+                        destination = enemy.getLocation();
+                    }
+                }
+            }
+        if (state == State.DRONE_EXPLORE)
+        {
+            Direction bestDir = Direction.CENTER;
+            for (Direction direction : directions)
+                if (rc.adjacentLocation(direction).distanceSquaredTo(destination) < rc.adjacentLocation(bestDir).distanceSquaredTo(destination))
+                {
+                    bestDir = direction;
+                }
+            if (rc.canMove(bestDir))
+                rc.move(bestDir);
+        }
     }
 
     static void runNetGun() throws GameActionException {
