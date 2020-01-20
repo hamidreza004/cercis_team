@@ -17,7 +17,9 @@ public strictfp class RobotPlayer {
         LANDSCAPER_DEFEND,
         UNKNOWN,
         MINER_SOUP,
-        DRONE_EXPLORE
+        DROP_FRIEND,
+        DRONE_EXPLORE,
+        DROP_ENEMY
     }
 
     static class Cell {
@@ -713,7 +715,11 @@ public strictfp class RobotPlayer {
         return (robot != null && robot.type == RobotType.LANDSCAPER && robot.team == rc.getTeam());
     }
 
+    static MapLocation baseDeliveryDrone = null;
+
     static void runDeliveryDrone() throws GameActionException {
+        if (turnCount == 1)
+            baseDeliveryDrone = rc.getLocation();
         for (RobotInfo robot : robots)
             if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.HQ) {
                 for (Direction direction : directions) {
@@ -726,18 +732,39 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-        if (state == State.DRONE_EXPLORE)
-        {
+        if (state == State.DRONE_EXPLORE) {
             Direction bestDir = Direction.CENTER;
             for (Direction direction : directions)
-                if (rc.adjacentLocation(direction).distanceSquaredTo(destination) < rc.adjacentLocation(bestDir).distanceSquaredTo(destination))
-                {
+                if (rc.adjacentLocation(direction).distanceSquaredTo(destination) < rc.adjacentLocation(bestDir).distanceSquaredTo(destination)) {
                     bestDir = direction;
                 }
             if (rc.canMove(bestDir))
                 rc.move(bestDir);
-            if (destination.isAdjacentTo(rc.getLocation()))
-                rc.pickUpUnit(rc.senseRobotAtLocation(destination).getID());
+            if (destination.isAdjacentTo(rc.getLocation())) {
+                RobotInfo robot = rc.senseRobotAtLocation(destination);
+                if (rc.canPickUpUnit(robot.getID())) {
+                    rc.pickUpUnit(robot.getID());
+                    if (robot.getTeam() == rc.getTeam())
+                        state = State.DROP_FRIEND;
+                    else
+                        state = State.DROP_ENEMY;
+                }
+            }
+        }
+        if (state == State.DROP_ENEMY || state == State.DROP_FRIEND)
+        {
+            destination = new MapLocation(rand.nextInt(rc.getMapWidth()), rand.nextInt(rc.getMapHeight()));
+            if (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 15) {
+                for (Direction direction : directions)
+                    if (rc.canDropUnit(direction))
+                    {
+                        rc.dropUnit(direction);
+                        break;
+                    }
+            }
+            Direction dir = rc.getLocation().directionTo(destination);
+            if (rc.canMove(dir))
+                rc.move(dir);
         }
     }
 
