@@ -266,7 +266,8 @@ public strictfp class RobotPlayer {
             }
             if (rc.getSoupCarrying() > 0 && soup == null || rc.getSoupCarrying() == RobotType.MINER.soupLimit) {
                 for (Direction dir : directions)
-                    if (rc.canDepositSoup(dir) && rc.senseRobotAtLocation(rc.adjacentLocation(dir)).getTeam() == rc.getTeam()) {
+                    if (rc.canDepositSoup(dir)
+                            && rc.senseRobotAtLocation(rc.getLocation().add(dir)).getTeam() == rc.getTeam()) {
                         rc.depositSoup(dir, rc.getSoupCarrying());
                         lastSoupAction = turnCount;
                         okToUsePreferred = true;
@@ -612,6 +613,7 @@ public strictfp class RobotPlayer {
                         Direction depDir = (new MapLocation(0, 0)).directionTo(new MapLocation(dx, dy));
 
                         try {
+                            depDir = Direction.CENTER;
                             int minElev = rc.senseElevation(rc.getLocation().add(depDir));
                             for (Direction dir : directions) {
                                 MapLocation loc = rc.getLocation().add(dir);
@@ -620,7 +622,7 @@ public strictfp class RobotPlayer {
 
                                 if (((distance == defenceRadius
                                         && (locationContainsDefendingLandscaper(loc) || turnCount > fixWallTurn))
-                                        || (distance == defenceRadius + 1 && loc.x != defenceOrigin.x && loc.y != defenceOrigin.y)
+                                        || (turnCount > fixWallTurn / 4 && distance == defenceRadius + 1 && loc.x != defenceOrigin.x && loc.y != defenceOrigin.y)
                                         || (distance <= defenceRadius && rc.senseFlooding(loc))
                                         /*|| getFloodFlag(loc)*/)
                                         && (elev < minElev)) {
