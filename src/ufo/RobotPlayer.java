@@ -490,7 +490,7 @@ public strictfp class RobotPlayer {
 
     static void runFulfillmentCenter() throws GameActionException {
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 2.0)
+        if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 2.0 || rc.getTeamSoup() > 600)
             for (Direction direction : directions)
                 if (rc.canBuildRobot(RobotType.DELIVERY_DRONE, direction)) {
                     rc.buildRobot(RobotType.DELIVERY_DRONE, direction);
@@ -736,7 +736,7 @@ public strictfp class RobotPlayer {
     static void runDeliveryDrone() throws GameActionException {
         if (turnCount == 1)
             baseDeliveryDrone = rc.getLocation();
-        if (state != State.DROP_FRIEND || state != State.DROP_ENEMY)
+        if (state != State.DROP_FRIEND && state != State.DROP_ENEMY)
             for (RobotInfo robot : robots)
                 if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.HQ) {
                     for (Direction direction : directions) {
@@ -759,8 +759,9 @@ public strictfp class RobotPlayer {
                 }
             if (rc.canMove(bestDir))
                 rc.move(bestDir);
-            if (destination.isAdjacentTo(rc.getLocation())) {
-                RobotInfo robot = rc.senseRobotAtLocation(destination);
+            for (Direction direction : directions)
+            {
+                RobotInfo robot = rc.senseRobotAtLocation(rc.adjacentLocation(direction));
                 if (robot != null && (robot.getTeam() != rc.getTeam() || robot.getType() == RobotType.MINER) && rc.canPickUpUnit(robot.getID())) {
                     rc.pickUpUnit(robot.getID());
                     randomDestination();
