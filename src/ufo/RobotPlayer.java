@@ -1062,7 +1062,7 @@ public strictfp class RobotPlayer {
     private static void findEnemyHQ() throws GameActionException {
         if (enemyHQ != null)
             return;
-        for (int i = Math.max(1, rc.getRoundNum() - 800); i < rc.getRoundNum(); i++) {
+        for (int i = Math.max(1, rc.getRoundNum() - 400); i < rc.getRoundNum(); i++) {
             for (Transaction transaction : rc.getBlock(i))
                 if (transaction.getMessage()[2] == rc.getTeam().ordinal() && transaction.getMessage()[3] == i + 1999 && transaction.getMessage()[4] == 1999) {
                     enemyHQ = new MapLocation(transaction.getMessage()[0], transaction.getMessage()[1]);
