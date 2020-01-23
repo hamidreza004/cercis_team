@@ -430,7 +430,7 @@ public strictfp class RobotPlayer {
                 if (rc.getLocation().distanceSquaredTo(netgun) < GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)
                     onNetGun = true;
             }
-            if (onNetGun || dest == enemyHQ)
+            if (onNetGun || dest == enemyHQ || rc.getLocation().distanceSquaredTo(homeDeliveryDrone) > 400)
                 nearNetgun = false;
             if (!nearNetgun && nextLoc.distanceSquaredTo(dest)
                     < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
@@ -929,6 +929,8 @@ public strictfp class RobotPlayer {
         if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) > 250)
             droneType = DroneType.ATTACK;
         if (droneType == DroneType.ATTACK) {
+            if (!rc.isReady())
+                return;
             for (Direction direction : directions) {
                 MapLocation loc = rc.adjacentLocation(direction);
                 if (!rc.isCurrentlyHoldingUnit()) {
@@ -953,9 +955,11 @@ public strictfp class RobotPlayer {
             if (enemyHQ != null)
                 destination = enemyHQ;
             Direction dir = droneMoveTowards(destination);
-            if (dir == Direction.CENTER)
+            if (dir == Direction.CENTER) {
                 randomDestination();
-            dir = droneMoveTowards(destination);
+                System.out.println("change");
+                dir = droneMoveTowards(destination);
+            }
             if (rc.canMove(dir))
                 rc.move(dir);
             return;
