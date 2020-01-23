@@ -377,7 +377,7 @@ public strictfp class RobotPlayer {
             MapLocation nextLoc = rc.adjacentLocation(dir);
             if (nextLoc.distanceSquaredTo(dest)
                     < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
-                    && rc.canMove(dir)  &&  (hamiltonianDistance(rc.getLocation(), homeDeliveryDrone) <= defenceRadius + 2 || goingToEnemy || hamiltonianDistance(nextLoc, homeDeliveryDrone) > defenceRadius + 2)) {
+                    && rc.canMove(dir)  &&  (hamiltonianDistance(rc.getLocation(), homeDeliveryDrone) <= defenceRadius  || goingToEnemy || hamiltonianDistance(nextLoc, homeDeliveryDrone) > defenceRadius)) {
                 bestDir = dir;
             }
         }
@@ -778,6 +778,7 @@ public strictfp class RobotPlayer {
                 droneInitExplore();
             state = State.DRONE_EXPLORE;
         }
+        System.out.println(goingToEnemy);
         if (state == State.DRONE_EXPLORE) {
             Direction bestDir = droneMoveTowards(destination);
             if (bestDir == Direction.CENTER) {
