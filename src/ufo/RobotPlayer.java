@@ -811,7 +811,8 @@ public strictfp class RobotPlayer {
             if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) < 100)
                 for (RobotInfo enemy : robots) {
                     if (!enemy.getType().isBuilding())
-                        if (enemy.getTeam() != rc.getTeam() || ((enemy.getType() == RobotType.MINER || enemy.getType() == RobotType.LANDSCAPER) && hamiltonianDistance(enemy.getLocation(), homeDeliveryDrone) < defenceRadius)) {
+                        if (enemy.getTeam() != rc.getTeam() || (enemy.getType() == RobotType.MINER && hamiltonianDistance(enemy.getLocation(), homeDeliveryDrone) <= defenceRadius + 1) ||
+                                (enemy.getType() == RobotType.LANDSCAPER && hamiltonianDistance(enemy.getLocation(), homeDeliveryDrone) < defenceRadius)) {
                             if (tmpLocation == null || rc.getLocation().distanceSquaredTo(tmpLocation) > rc.getLocation().distanceSquaredTo(enemy.getLocation()))
                                 if (enemy.getType() == RobotType.MINER && enemy.getTeam() == rc.getTeam() && !firstMiner) {
                                     firstMiner = true;
@@ -838,7 +839,7 @@ public strictfp class RobotPlayer {
                     RobotInfo robot = rc.senseRobotAtLocation(rc.adjacentLocation(direction));
                     if (robot == null) continue;
                     if (!robot.getType().isBuilding())
-                        if (robot.getTeam() != rc.getTeam() || (robot.getType() == RobotType.MINER && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) <= defenceRadius) ||
+                        if (robot.getTeam() != rc.getTeam() || (robot.getType() == RobotType.MINER && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) <= defenceRadius + 1) ||
                                 (robot.getType() == RobotType.LANDSCAPER && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) < defenceRadius))
                             if (robot.getType() == RobotType.MINER && robot.getTeam() == rc.getTeam() && !firstMiner) {
                                 firstMiner = true;
