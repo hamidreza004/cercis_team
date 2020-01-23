@@ -328,11 +328,15 @@ public strictfp class RobotPlayer {
 
                 if (rc.getTeamSoup() > RobotType.REFINERY.cost &&
                         (lastSoupAction < turnCount - 50 || soupSum > 350 && refinery == null && getNearbyHQ() == null)) {
-                    for (Direction direction : directions)
+                    for (Direction direction : directions) {
+                        MapLocation loc = rc.adjacentLocation(direction);
+                        if (hamiltonianDistance(loc, HQ_Save) <= defenceRadius)
+                            continue;
                         if (rc.canBuildRobot(RobotType.REFINERY, direction)) {
                             rc.buildRobot(RobotType.REFINERY, direction);
                             return;
                         }
+                    }
                 }
 
                 if (refinery == null) {
