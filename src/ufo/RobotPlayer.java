@@ -430,7 +430,7 @@ public strictfp class RobotPlayer {
                 if (rc.getLocation().distanceSquaredTo(netgun) < GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)
                     onNetGun = true;
             }
-            if (onNetGun || dest == enemyHQ)
+            if (onNetGun || dest == enemyHQ || rc.getLocation().distanceSquaredTo(homeDeliveryDrone) > 400)
                 nearNetgun = false;
             if (!nearNetgun && nextLoc.distanceSquaredTo(dest)
                     < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
