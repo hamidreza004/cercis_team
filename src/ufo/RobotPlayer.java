@@ -707,6 +707,7 @@ public strictfp class RobotPlayer {
     static MapLocation homeDeliveryDrone = null;
     static boolean goingToEnemy = false;
     static int homeElevation;
+    static MapLocation[] defencePositionsDrone = new MapLocation[10 * defenceRadius];
 
     static void runDeliveryDrone() throws GameActionException {
         if (turnCount == 1) {
@@ -724,16 +725,25 @@ public strictfp class RobotPlayer {
             for (int dx = -defenceRadius; dx <= defenceRadius; dx++) {
                 int dy = defenceRadius - Math.abs(dx);
                 if (isOnMap(defenceOrigin.translate(dx, dy)))
-                    defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
+                    defencePositionsDrone[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
                 if (dy != 0) {
                     dy = -dy;
                     if (isOnMap(defenceOrigin.translate(dx, dy)))
-                        defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
+                        defencePositionsDrone[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
+                }
+            }
+            for (int dx = -defenceRadius - 1; dx <= defenceRadius + 1; dx++) {
+                int dy = defenceRadius + 1 - Math.abs(dx);
+                if (isOnMap(defenceOrigin.translate(dx, dy)) && dx != 0 && dy != 0)
+                    defencePositionsDrone[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
+                if (dy != 0) {
+                    dy = -dy;
+                    if (isOnMap(defenceOrigin.translate(dx, dy)) && dx != 0 && dy != 0)
+                        defencePositionsDrone[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
                 }
             }
         }
         goingToEnemy = false;
-
         if (state != State.DROP_FRIEND && state != State.DROP_ENEMY && state != State.DROP_DEFENDER) {
             MapLocation tmpLocation = null;
             if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) < 100)
@@ -815,9 +825,14 @@ public strictfp class RobotPlayer {
         }
         if (state == State.DROP_DEFENDER) {
             MapLocation bestLocation = null;
-            for (MapLocation location : defencePositions)
+            for (int i = 0; i < defendingRobotsNumber; i++) {
+                MapLocation location = defencePositionsDrone[i];
+                if (i >= defenceRadius * 4 && bestLocation != null)
+                    break;
                 if ((bestLocation == null || rc.getLocation().distanceSquaredTo(location) < rc.getLocation().distanceSquaredTo(bestLocation)) && rc.canSenseLocation(location) && rc.senseRobotAtLocation(location) == null)
                     bestLocation = location;
+            }
+            System.out.println(bestLocation);
             if (bestLocation != null) {
                 if (bestLocation.isAdjacentTo(rc.getLocation()) && rc.canDropUnit(rc.getLocation().directionTo(bestLocation))) {
                     rc.dropUnit(rc.getLocation().directionTo(bestLocation));
