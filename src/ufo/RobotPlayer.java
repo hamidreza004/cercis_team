@@ -186,16 +186,16 @@ public strictfp class RobotPlayer {
 
 
     static void runHQ() throws GameActionException {
-        int hereMiners = 0;
+        int hereRobots = 0;
         for (RobotInfo robot : robots) {
             if (robot.getTeam() != rc.getTeam() && robot.getType() == RobotType.DELIVERY_DRONE)
                 if (rc.canShootUnit(robot.getID()))
                     rc.shootUnit(robot.getID());
-            if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.MINER && hamiltonianDistance(rc.getLocation(), robot.getLocation()) < defenceRadius)
-                hereMiners++;
+            if (robot.getTeam() == rc.getTeam() && !robot.getType().isBuilding() && hamiltonianDistance(rc.getLocation(), robot.getLocation()) < defenceRadius)
+                hereRobots++;
         }
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        if (hereMiners < 2)
+        if (hereRobots < 3)
             if (numberOfMiners < 7 || differenceSoup > RobotType.MINER.cost * 2.5 ||
                     (rc.getTeamSoup() > 1000 && turnCount - lastMinerCreatedTurn > 50) || (turnCount - lastMinerCreatedTurn > 150)) {
                 int x = rand.nextInt(directions.length);
@@ -507,14 +507,14 @@ public strictfp class RobotPlayer {
         if (state == State.DESIGNSCHOOL_DEFEND) {
             int cnt = countNearbyDefense();
 //            int cnt = landScapersBuilt;
-            int hereLandscapers = 0;
+            int hereRobots = 0;
             for (RobotInfo robot : robots)
                 if (robot.getType() == RobotType.HQ && robot.getTeam() == rc.getTeam())
                     HQ_Save = robot.getLocation();
             for (RobotInfo robot : robots)
-                if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.LANDSCAPER && hamiltonianDistance(HQ_Save, robot.getLocation()) < defenceRadius)
-                    hereLandscapers++;
-            if (hereLandscapers < 2)
+                if (robot.getTeam() == rc.getTeam() && !robot.getType().isBuilding() && hamiltonianDistance(HQ_Save, robot.getLocation()) < defenceRadius)
+                    hereRobots++;
+            if (hereRobots < 3)
                 if (cnt < defendingRobotsNumber /*+ extraLandscapers*/ || differenceSoup > RobotType.LANDSCAPER.cost * 0.8
                         || (turnCount - lastLandscaperBuilt > (turnCount > 1000 ? 300 : 150)))
                     for (Direction dir : directions)
@@ -533,15 +533,15 @@ public strictfp class RobotPlayer {
 
     static void runFulfillmentCenter() throws GameActionException {
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        int hereDeliveryDrones = 0;
+        int hereRobots = 0;
         for (RobotInfo robot : robots)
             if (robot.getType() == RobotType.HQ && robot.getTeam() == rc.getTeam())
                 HQ_Save = robot.getLocation();
         for (RobotInfo robot : robots)
-            if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.DELIVERY_DRONE && hamiltonianDistance(HQ_Save, robot.getLocation()) < defenceRadius)
-                hereDeliveryDrones++;
-        System.out.println(hereDeliveryDrones);
-        if (hereDeliveryDrones < 2)
+            if (robot.getTeam() == rc.getTeam() && !robot.getType().isBuilding() && hamiltonianDistance(HQ_Save, robot.getLocation()) < defenceRadius)
+                hereRobots++;
+        System.out.println(hereRobots);
+        if (hereRobots < 3)
             if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 1.5 || rc.getTeamSoup() > 600)
                 for (Direction direction : directions)
                     if (rc.canBuildRobot(RobotType.DELIVERY_DRONE, direction)) {
@@ -751,6 +751,7 @@ public strictfp class RobotPlayer {
     static boolean goingToEnemy = false;
     static int homeElevation;
     static MapLocation[] defencePositionsDrone = new MapLocation[10 * defenceRadius];
+    static int ignoreMiner = 0;
 
     static void runDeliveryDrone() throws GameActionException {
         if (turnCount == 1) {
@@ -794,7 +795,9 @@ public strictfp class RobotPlayer {
                     if (!enemy.getType().isBuilding())
                         if (enemy.getTeam() != rc.getTeam() || ((enemy.getType() == RobotType.MINER || enemy.getType() == RobotType.LANDSCAPER) && hamiltonianDistance(enemy.getLocation(), homeDeliveryDrone) < defenceRadius)) {
                             if (tmpLocation == null || rc.getLocation().distanceSquaredTo(tmpLocation) > rc.getLocation().distanceSquaredTo(enemy.getLocation()))
-                                tmpLocation = enemy.getLocation();
+                                if (enemy.getType() == RobotType.MINER && enemy.getTeam() == rc.getTeam() && ignoreMiner < turnCount)
+                                    ignoreMiner = turnCount + 20;
+                                else tmpLocation = enemy.getLocation();
                         }
                 }
             if (tmpLocation != null) {
@@ -833,7 +836,11 @@ public strictfp class RobotPlayer {
         if (state == State.DROP_ENEMY) {
             for (Direction direction : directions) {
                 MapLocation loc = rc.adjacentLocation(direction);
-                if (rc.canDropUnit(direction) && (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 100 || (rc.canSenseLocation(loc) && rc.senseFlooding(loc)))) {
+                if (rc.canDropUnit(direction) &&
+                        (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 100
+                                || (rc.canSenseLocation(loc) &&
+                                    (rc.senseFlooding(loc) || (Math.abs(rc.senseElevation(loc) - homeElevation) > 5 && rc.getLocation().distanceSquaredTo(homeDeliveryDrone) > 70)))))
+                {
                     rc.dropUnit(direction);
                     droneInitExplore();
                     state = State.DRONE_EXPLORE;
