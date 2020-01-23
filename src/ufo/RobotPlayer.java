@@ -186,23 +186,28 @@ public strictfp class RobotPlayer {
 
 
     static void runHQ() throws GameActionException {
-        for (RobotInfo robot : robots)
+        int minersHere = 0;
+        for (RobotInfo robot : robots) {
             if (robot.getTeam() != rc.getTeam() && robot.getType() == RobotType.DELIVERY_DRONE)
                 if (rc.canShootUnit(robot.getID()))
                     rc.shootUnit(robot.getID());
+            if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.MINER && hamiltonianDistance(rc.getLocation(), robot.getLocation()) < defenceRadius)
+                minersHere++;
+        }
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        if (numberOfMiners < 7 || differenceSoup > RobotType.MINER.cost * 2.5 ||
-                (rc.getTeamSoup() > 1000 && turnCount - lastMinerCreatedTurn > 50) || (turnCount - lastMinerCreatedTurn > 150)) {
-            int x = rand.nextInt(directions.length);
-            for (int i = x; i < directions.length + x; i++) {
-                Direction direction = directions[i % directions.length];
-                if (hamiltonianDistance(rc.adjacentLocation(direction), rc.getLocation()) == 1 && rc.canBuildRobot(RobotType.MINER, direction)) {
-                    rc.buildRobot(RobotType.MINER, direction);
-                    lastMinerCreatedTurn = turnCount;
-                    numberOfMiners++;
+        if (minersHere < 3)
+            if (numberOfMiners < 7 || differenceSoup > RobotType.MINER.cost * 2.5 ||
+                    (rc.getTeamSoup() > 1000 && turnCount - lastMinerCreatedTurn > 50) || (turnCount - lastMinerCreatedTurn > 150)) {
+                int x = rand.nextInt(directions.length);
+                for (int i = x; i < directions.length + x; i++) {
+                    Direction direction = directions[i % directions.length];
+                    if (hamiltonianDistance(rc.adjacentLocation(direction), rc.getLocation()) == 1 && rc.canBuildRobot(RobotType.MINER, direction)) {
+                        rc.buildRobot(RobotType.MINER, direction);
+                        lastMinerCreatedTurn = turnCount;
+                        numberOfMiners++;
+                    }
                 }
             }
-        }
         for (int i = 0; i < soupSaveTurns - 1; i++)
             lastTurnSoup[i] = lastTurnSoup[i + 1];
         lastTurnSoup[soupSaveTurns - 1] = rc.getTeamSoup();
@@ -215,7 +220,10 @@ public strictfp class RobotPlayer {
     private static int lastSoupAction;
 
     static void runMiner() throws GameActionException {
-        if (state == State.UNKNOWN) {
+        if (state == State.UNKNOWN || (hamiltonianDistance(rc.getLocation(), HQ_Save) == 1 && rc.getSoupCarrying() == 0)) {
+            for (RobotInfo robot : robots)
+                if (robot.getType() == RobotType.HQ && robot.getTeam() == rc.getTeam())
+                    HQ_Save = robot.getLocation();
             if (rc.getTeamSoup() > 400) {
                 for (Direction direction : directions) {
                     MapLocation loc = rc.adjacentLocation(direction);
@@ -223,7 +231,6 @@ public strictfp class RobotPlayer {
                         RobotInfo robotInfo = rc.senseRobotAtLocation(loc);
                         if (robotInfo != null && robotInfo.team == rc.getTeam() && robotInfo.type == RobotType.HQ) {
                             state = State.BUILD;
-                            HQ_Save = loc;
                         }
                     }
 
@@ -519,11 +526,20 @@ public strictfp class RobotPlayer {
 
     static void runFulfillmentCenter() throws GameActionException {
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 1.5 || rc.getTeamSoup() > 600)
-            for (Direction direction : directions)
-                if (rc.canBuildRobot(RobotType.DELIVERY_DRONE, direction)) {
-                    rc.buildRobot(RobotType.DELIVERY_DRONE, direction);
-                }
+        int hereLandscapers = 0;
+        for (RobotInfo robot : robots)
+            if (robot.getType() == RobotType.HQ && robot.getTeam() == rc.getTeam())
+                HQ_Save = robot.getLocation();
+        for (RobotInfo robot : robots)
+            if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.LANDSCAPER && hamiltonianDistance(HQ_Save, robot.getLocation()) < defenceRadius)
+                hereLandscapers++;
+        System.out.println(hereLandscapers);
+        if (hereLandscapers < 2)
+            if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 1.5 || rc.getTeamSoup() > 600)
+                for (Direction direction : directions)
+                    if (rc.canBuildRobot(RobotType.DELIVERY_DRONE, direction)) {
+                        rc.buildRobot(RobotType.DELIVERY_DRONE, direction);
+                    }
         for (int i = 0; i < soupSaveTurns - 1; i++)
             lastTurnSoup[i] = lastTurnSoup[i + 1];
         lastTurnSoup[soupSaveTurns - 1] = rc.getTeamSoup();
@@ -645,7 +661,6 @@ public strictfp class RobotPlayer {
                         }
 
                         if (rc.canDepositDirt(depDir)) {
-                            //System.out.println("Depositing dirt " + rc.getLocation().add(depDir));
                             rc.depositDirt(depDir);
                             depositCount++;
                         }
@@ -655,7 +670,6 @@ public strictfp class RobotPlayer {
 
 
                     if (rc.canDigDirt(defenceDirection)) {
-                        //System.out.println("Getting Dirt " + rc.getLocation().add(defenceDirection));
                         rc.digDirt(defenceDirection);
                     }
                 } else {
@@ -699,7 +713,7 @@ public strictfp class RobotPlayer {
 
     static MapLocation getDefencePosition() throws GameActionException {
         if (hamiltonianDistance(rc.getLocation(), defenceOrigin) == defenceRadius
-            || hamiltonianDistance(rc.getLocation(), defenceOrigin) == defenceRadius + 1)
+                || hamiltonianDistance(rc.getLocation(), defenceOrigin) == defenceRadius + 1)
             return rc.getLocation();
 
         MapLocation ret = null;
@@ -753,11 +767,11 @@ public strictfp class RobotPlayer {
             }
             for (int dx = -defenceRadius - 1; dx <= defenceRadius + 1; dx++) {
                 int dy = defenceRadius + 1 - Math.abs(dx);
-                if (isOnMap(defenceOrigin.translate(dx, dy)) && dx != 0 && dy != 0)
+                if (isOnMap(defenceOrigin.translate(dx, dy)) && dx != 0 && dy != 0 && Math.abs(dx) != 1)
                     defencePositionsDrone[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
                 if (dy != 0) {
                     dy = -dy;
-                    if (isOnMap(defenceOrigin.translate(dx, dy)) && dx != 0 && dy != 0)
+                    if (isOnMap(defenceOrigin.translate(dx, dy)) && dx != 0 && dy != 0 && Math.abs(dx) != 1)
                         defencePositionsDrone[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
                 }
             }
@@ -851,7 +865,6 @@ public strictfp class RobotPlayer {
                 if ((bestLocation == null || rc.getLocation().distanceSquaredTo(location) < rc.getLocation().distanceSquaredTo(bestLocation)) && rc.canSenseLocation(location) && rc.senseRobotAtLocation(location) == null)
                     bestLocation = location;
             }
-            System.out.println(bestLocation);
             if (bestLocation != null) {
                 if (bestLocation.isAdjacentTo(rc.getLocation()) && rc.canDropUnit(rc.getLocation().directionTo(bestLocation))) {
                     rc.dropUnit(rc.getLocation().directionTo(bestLocation));
