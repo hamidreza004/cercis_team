@@ -341,6 +341,22 @@ public strictfp class RobotPlayer {
                     }
                     destination = pathToHQ;
                 } else destination = refinery;
+            } else {
+                if (rc.getTeamSoup() > 400) {
+                    int netguns = 0, drones = 0;
+                    for (RobotInfo robot : robots)
+                        if (robot.getType() == RobotType.DELIVERY_DRONE && robot.getTeam() != rc.getTeam())
+                            drones++;
+                        else if (robot.getType() == RobotType.NET_GUN && robot.getTeam() == rc.getTeam())
+                            netguns++;
+                    if (drones > 0 && netguns == 0) {
+                        for (Direction direction : directions)
+                            if (rc.canBuildRobot(RobotType.NET_GUN, direction)) {
+                                rc.buildRobot(RobotType.NET_GUN, direction);
+                                return;
+                            }
+                    }
+                }
             }
             if (state == State.MINER_EXPLORE && rc.isReady()) {
                 Direction dir = moveTowards(destination);
@@ -789,7 +805,6 @@ public strictfp class RobotPlayer {
         }
         if (turnCount > ignoreMiner + 40)
             firstMiner = false;
-        System.out.println(turnCount + " " + ignoreMiner + " " + firstMiner);
         goingToEnemy = false;
         if (state != State.DROP_FRIEND && state != State.DROP_ENEMY && state != State.DROP_DEFENDER) {
             MapLocation tmpLocation = null;
