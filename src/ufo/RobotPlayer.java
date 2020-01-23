@@ -398,6 +398,23 @@ public strictfp class RobotPlayer {
         }
     }
 
+    private static Direction landscaperMoveTowards2(MapLocation dest) throws GameActionException {
+        Direction bestDir = Direction.CENTER;
+
+        for (Direction dir : directions) {
+            MapLocation nextLoc = rc.adjacentLocation(dir);
+            RobotInfo robot = (rc.canSenseLocation(nextLoc) ? rc.senseRobotAtLocation(nextLoc) : null);
+            if (nextLoc.distanceSquaredTo(dest)
+                    < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
+                    && !rc.senseFlooding(nextLoc)
+                    && robot == null) {
+                bestDir = dir;
+            }
+        }
+
+        return bestDir;
+    }
+
     private static Direction landscaperMoveTowards(MapLocation dest) throws GameActionException {
         Direction bestDir = Direction.CENTER;
 
@@ -683,7 +700,7 @@ public strictfp class RobotPlayer {
                 destination = rc.getLocation().translate(dx, dy);
             }
 
-            Direction dir = landscaperMoveTowards(destination);
+            Direction dir = landscaperMoveTowards2(destination);
             System.out.println(destination + " ** " + dir);
             if (dir == Direction.CENTER)
                 randomDestination();
