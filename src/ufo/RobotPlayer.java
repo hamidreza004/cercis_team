@@ -2,6 +2,7 @@ package ufo;
 
 import battlecode.common.*;
 
+import javax.swing.*;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -400,10 +401,17 @@ public strictfp class RobotPlayer {
 
     private static Direction droneMoveTowards(MapLocation dest) throws GameActionException {
         Direction bestDir = Direction.CENTER;
-
+        ArrayList<MapLocation> netguns = new ArrayList<>();
+        for (RobotInfo robot : robots)
+            if (robot.getType() == RobotType.NET_GUN && robot.getTeam() != rc.getTeam())
+                netguns.add(robot.getLocation());
         for (Direction dir : directions) {
             MapLocation nextLoc = rc.adjacentLocation(dir);
-            if (nextLoc.distanceSquaredTo(dest)
+            boolean nearNetgun = false;
+            for (MapLocation netgun : netguns)
+                if (nextLoc.distanceSquaredTo(netgun) < GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)
+                    nearNetgun = true;
+            if (!nearNetgun && nextLoc.distanceSquaredTo(dest)
                     < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
                     && rc.canMove(dir) && (hamiltonianDistance(rc.getLocation(), homeDeliveryDrone) <= defenceRadius || goingToEnemy || hamiltonianDistance(nextLoc, homeDeliveryDrone) > defenceRadius)) {
                 bestDir = dir;
@@ -557,11 +565,14 @@ public strictfp class RobotPlayer {
             if (robot.getTeam() == rc.getTeam() && robot.getType() == RobotType.DELIVERY_DRONE && hamiltonianDistance(HQ_Save, robot.getLocation()) < defenceRadius)
                 hereDeliveryDrones++;
         if (hereDeliveryDrones < 3)
-            if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 1.5 || rc.getTeamSoup() > 600)
-                for (Direction direction : directions)
-                    if (rc.canBuildRobot(RobotType.DELIVERY_DRONE, direction)) {
+            if (differenceSoup > RobotType.DELIVERY_DRONE.cost / 1.5 || rc.getTeamSoup() > 600) {
+                int x = rand.nextInt(directions.length);
+                for (int i = x; i < x + directions.length; i++) {
+                    Direction direction = directions[i % directions.length];
+                    if (rc.canBuildRobot(RobotType.DELIVERY_DRONE, direction))
                         rc.buildRobot(RobotType.DELIVERY_DRONE, direction);
-                    }
+                }
+            }
         for (int i = 0; i < soupSaveTurns - 1; i++)
             lastTurnSoup[i] = lastTurnSoup[i + 1];
         lastTurnSoup[soupSaveTurns - 1] = rc.getTeamSoup();
