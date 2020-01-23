@@ -916,6 +916,12 @@ public strictfp class RobotPlayer {
             firstMiner = false;
         goingToEnemy = false;
         if (state != State.DROP_FRIEND && state != State.DROP_ENEMY && state != State.DROP_DEFENDER) {
+            findEnemyHQ();
+            if (rc.getRoundNum() % 500 == 0)
+                if (rand.nextInt(2) == 0) {
+                    droneType = DroneType.ATTACK;
+                    return;
+                }
             MapLocation tmpLocation = null;
             if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) < 100)
                 for (RobotInfo enemy : robots) {
