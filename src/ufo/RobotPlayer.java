@@ -748,6 +748,7 @@ public strictfp class RobotPlayer {
     static MapLocation baseDeliveryDrone = null;
     static MapLocation homeDeliveryDrone = null;
     static boolean goingToEnemy = false;
+    static int homeElevation;
     static void runDeliveryDrone() throws GameActionException {
         if (turnCount == 1) {
             baseDeliveryDrone = rc.getLocation();
@@ -755,6 +756,7 @@ public strictfp class RobotPlayer {
             for (RobotInfo robot : robots)
                 if (robot.getType() == RobotType.HQ && robot.getTeam() == rc.getTeam()) {
                     homeDeliveryDrone = robot.getLocation();
+                    homeElevation = rc.senseElevation(homeDeliveryDrone);
                     break;
                 }
         }
@@ -765,7 +767,7 @@ public strictfp class RobotPlayer {
             if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) < 100)
                 for (RobotInfo enemy : robots) {
                     if (!enemy.getType().isBuilding())
-                        if (enemy.getTeam() != rc.getTeam() || (enemy.getType() == RobotType.MINER && hamiltonianDistance(enemy.getLocation(), homeDeliveryDrone) < defenceRadius)) {
+                        if (enemy.getTeam() != rc.getTeam() || ((enemy.getType() == RobotType.MINER || enemy.getType() == RobotType.LANDSCAPER) && hamiltonianDistance(enemy.getLocation(), homeDeliveryDrone) < defenceRadius)) {
                             if (tmpLocation == null || rc.getLocation().distanceSquaredTo(tmpLocation) > rc.getLocation().distanceSquaredTo(enemy.getLocation()))
                                 tmpLocation = enemy.getLocation();
                         }
@@ -778,7 +780,6 @@ public strictfp class RobotPlayer {
                 droneInitExplore();
             state = State.DRONE_EXPLORE;
         }
-        System.out.println(goingToEnemy);
         if (state == State.DRONE_EXPLORE) {
             Direction bestDir = droneMoveTowards(destination);
             if (bestDir == Direction.CENTER) {
@@ -790,7 +791,7 @@ public strictfp class RobotPlayer {
                     RobotInfo robot = rc.senseRobotAtLocation(rc.adjacentLocation(direction));
                     if (robot == null) continue;
                     if (!robot.getType().isBuilding())
-                        if (robot.getTeam() != rc.getTeam() || (robot.getType() == RobotType.MINER && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) < defenceRadius))
+                        if (robot.getTeam() != rc.getTeam() || ((robot.getType() == RobotType.MINER || robot.getType() == RobotType.LANDSCAPER) && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) < defenceRadius))
                             if (rc.canPickUpUnit(robot.getID())) {
                                 rc.pickUpUnit(robot.getID());
                                 baseDeliveryDrone = rc.getLocation();
@@ -802,7 +803,7 @@ public strictfp class RobotPlayer {
                             }
                 }
         }
-        if (state == State.DROP_ENEMY || state == State.DROP_FRIEND) {
+        if (state == State.DROP_ENEMY) {
             if (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 100) {
                 for (Direction direction : directions)
                     if (rc.canDropUnit(direction)) {
@@ -811,6 +812,26 @@ public strictfp class RobotPlayer {
                         state = State.DRONE_EXPLORE;
                         break;
                     }
+            }
+
+            Direction dir = droneMoveTowards(destination);
+            if (dir == Direction.CENTER)
+                randomDestination();
+            else if (rc.canMove(dir))
+                rc.move(dir);
+        }
+        if (state == State.DROP_FRIEND)
+        {
+            if (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 100) {
+                for (Direction direction : directions) {
+                    MapLocation loc = rc.adjacentLocation(direction);
+                    if (rc.canDropUnit(direction) && rc.canSenseLocation(loc) && Math.abs(rc.senseElevation(loc) - homeElevation) < 5 && !rc.senseFlooding(loc)) {
+                        rc.dropUnit(direction);
+                        droneInitExplore();
+                        state = State.DRONE_EXPLORE;
+                        break;
+                    }
+                }
             }
 
             Direction dir = droneMoveTowards(destination);
