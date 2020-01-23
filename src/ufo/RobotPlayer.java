@@ -325,8 +325,7 @@ public strictfp class RobotPlayer {
                     soupSum += rc.senseSoup(soupTmp);
 
                 if (rc.getTeamSoup() > RobotType.REFINERY.cost &&
-                        ((lastSoupAction < turnCount - 50 && rc.getTeamSoup() > 350)
-                                || soupSum > 400 && refinery == null && getNearbyHQ() == null)) {
+                        (lastSoupAction < turnCount - 50 || soupSum > 350 && refinery == null && getNearbyHQ() == null)) {
                     for (Direction direction : directions)
                         if (rc.canBuildRobot(RobotType.REFINERY, direction)) {
                             rc.buildRobot(RobotType.REFINERY, direction);
