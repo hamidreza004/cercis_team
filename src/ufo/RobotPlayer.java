@@ -220,7 +220,7 @@ public strictfp class RobotPlayer {
     private static int lastSoupAction;
 
     static void runMiner() throws GameActionException {
-        if (state == State.UNKNOWN || (hamiltonianDistance(rc.getLocation(), HQ_Save) == 1 && rc.getSoupCarrying() == 0)) {
+        if (state == State.UNKNOWN || (HQ_Save != null && hamiltonianDistance(rc.getLocation(), HQ_Save) == 1 && rc.getSoupCarrying() == 0)) {
             for (RobotInfo robot : robots)
                 if (robot.getType() == RobotType.HQ && robot.getTeam() == rc.getTeam())
                     HQ_Save = robot.getLocation();
@@ -590,15 +590,19 @@ public strictfp class RobotPlayer {
 
         if (state == State.LANDSCAPER_DEFEND) {
             if (rc.isReady()) {
-                if (lastPositionChange < turnCount - 20)
-                    setLastIgnore(defencePosition, turnCount);
-
                 MapLocation tmp = defencePosition;
                 if (!rc.getLocation().equals(defencePosition) && (defencePosition == null
                         || locationContainsDefendingLandscaper(defencePosition) || lastMoved < turnCount - 10)) {
                     defencePosition = getDefencePosition();
+                    if (defencePosition == null) {
+                        return;
+//                        System.out.println("WTF");
+                    }
                     lastMoved = turnCount;
                 }
+
+                if (lastPositionChange < turnCount - 20)
+                    setLastIgnore(defencePosition, turnCount);
 
                 if (!defencePosition.equals(tmp)) lastPositionChange = turnCount;
 
