@@ -19,7 +19,8 @@ public strictfp class RobotPlayer {
         MINER_SOUP,
         DROP_FRIEND,
         DRONE_EXPLORE,
-        DROP_ENEMY
+        DROP_ENEMY,
+        DROP_DEFENDER
     }
 
     static class Cell {
@@ -190,13 +191,12 @@ public strictfp class RobotPlayer {
                 if (rc.canShootUnit(robot.getID()))
                     rc.shootUnit(robot.getID());
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        if (numberOfMiners < 5 || differenceSoup > RobotType.MINER.cost * 2 ||
-                (rc.getTeamSoup() > 1000 && turnCount - lastMinerCreatedTurn > 30) || (turnCount - lastMinerCreatedTurn > 100)) {
-
-            int s = rand.nextInt(directions.length);
-            for (int i = 0; i < directions.length; i++) {
-                Direction direction = directions[(s + i) % directions.length];
-                if (rc.canBuildRobot(RobotType.MINER, direction)) {
+        if (numberOfMiners < 7 || differenceSoup > RobotType.MINER.cost * 2.5 ||
+                (rc.getTeamSoup() > 1000 && turnCount - lastMinerCreatedTurn > 50) || (turnCount - lastMinerCreatedTurn > 150)) {
+            int x = rand.nextInt(directions.length);
+            for (int i = x; i < directions.length + x; i++) {
+                Direction direction = directions[i % directions.length];
+                if (hamiltonianDistance(rc.adjacentLocation(direction), rc.getLocation()) == 1 && rc.canBuildRobot(RobotType.MINER, direction)) {
                     rc.buildRobot(RobotType.MINER, direction);
                     lastMinerCreatedTurn = turnCount;
                     numberOfMiners++;
@@ -234,40 +234,45 @@ public strictfp class RobotPlayer {
                 minerInitExplore();
             }
         }
-        System.out.println(state);
         if (state == State.BUILD) {
-            boolean isThereDesignSchool = false, isThereFulfillmentCenter = false;
+            boolean isThereDesignSchool = false, isThereFulfillmentCenter = false, isThereFirstVaporator = false, isThereSecondVaporator = false;
             for (RobotInfo robot : robots)
                 if (robot.team == rc.getTeam()) {
                     if (robot.type == RobotType.DESIGN_SCHOOL)
                         isThereDesignSchool = true;
                     if (robot.type == RobotType.FULFILLMENT_CENTER)
                         isThereFulfillmentCenter = true;
+                    if (robot.type == RobotType.VAPORATOR)
+                        if (isThereFirstVaporator)
+                            isThereSecondVaporator = true;
+                        else
+                            isThereFirstVaporator = true;
                 }
-            if (isThereDesignSchool && isThereFulfillmentCenter) {
-//                for (Direction dir : directions){
-//                    MapLocation loc = rc.getLocation().add(dir);
-//                    if (rc.canSenseLocation(loc) && hamiltonianDistance(loc, HQ_Save) == 2 &&
-//                            (HQ_Save.x == loc.x || HQ_Save.y == loc.y) && rc.canBuildRobot(RobotType.NET_GUN, dir))
-//                        rc.buildRobot(RobotType.NET_GUN, dir);
-//                }
-
+            if (isThereDesignSchool && isThereFulfillmentCenter && isThereFirstVaporator && isThereSecondVaporator) {
                 state = State.MINER_EXPLORE;
                 minerInitExplore();
             }
-
             if (state == State.BUILD) {
+                boolean empty = false;
                 for (Direction direction : directions) {
                     MapLocation loc = rc.adjacentLocation(direction);
-                    if (hamiltonianDistance(loc, HQ_Save) == 1) {
+                    if (hamiltonianDistance(loc, HQ_Save) == 2 && loc.isAdjacentTo(HQ_Save)) {
                         if (!isThereDesignSchool && rc.canBuildRobot(RobotType.DESIGN_SCHOOL, direction)) {
                             rc.buildRobot(RobotType.DESIGN_SCHOOL, direction);
-                            break;
                         } else if (!isThereFulfillmentCenter && rc.canBuildRobot(RobotType.FULFILLMENT_CENTER, direction)) {
                             rc.buildRobot(RobotType.FULFILLMENT_CENTER, direction);
-                            break;
+                        } else if (!isThereFirstVaporator && rc.canBuildRobot(RobotType.VAPORATOR, direction)) {
+                            rc.buildRobot(RobotType.VAPORATOR, direction);
+                        } else if (!isThereSecondVaporator && rc.canBuildRobot(RobotType.VAPORATOR, direction)) {
+                            rc.buildRobot(RobotType.VAPORATOR, direction);
                         }
+                        if (rc.canSenseLocation(loc) && rc.senseRobotAtLocation(loc) == null)
+                            empty = true;
                     }
+                }
+                if (!empty) {
+                    state = State.MINER_EXPLORE;
+                    minerInitExplore();
                 }
             }
         }
@@ -434,13 +439,7 @@ public strictfp class RobotPlayer {
     static MapLocation getNearbyHQ() throws GameActionException {
         for (int i = 0; i < sizeNeighbours; i++) {
             MapLocation d = neighbours[i];
-        /*if (rc.getID() == 12385){
-            System.out.println("d is " + d);
-            System.out.println("getLocation is " + rc.getLocation());
-        }*/
             MapLocation loc = rc.getLocation().translate(d.x, d.y);
-        /*if (rc.getID() == 12385)
-            System.out.println("loc is " + loc);*/
             if (rc.canSenseLocation(loc)) {
                 RobotInfo robot = null;
                 try {
@@ -455,7 +454,7 @@ public strictfp class RobotPlayer {
         return null;
     }
 
-    static final int defenceRadius = 3;
+    static int defenceRadius = 3;
     static int defendingRobotsNumber, extraLandscapers = 1;
     static MapLocation defenceOrigin, defencePosition;
     static MapLocation[] defencePositions = new MapLocation[4 * defenceRadius];
@@ -482,8 +481,6 @@ public strictfp class RobotPlayer {
                             defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
                     }
                 }
-
-//                System.out.println(defendingRobotsNumber);
             }
         }
 
@@ -559,7 +556,6 @@ public strictfp class RobotPlayer {
                 state = State.LANDSCAPER_DEFEND;
         }
 
-//        System.out.println("MY STATE IS " + state);
 
         if (state == State.LANDSCAPER_DEFEND) {
             if (rc.isReady()) {
@@ -576,48 +572,13 @@ public strictfp class RobotPlayer {
                 if (!defencePosition.equals(tmp)) lastPositionChange = turnCount;
 
                 // Don't destroy the wall if it's too late
-//                System.out.println("HERE");
                 if (!rc.getLocation().equals(defencePosition) && turnCount > fixWallTurn)
                     return;
-//                System.out.println("HERE2");
 
 
                 if (rc.getLocation().equals(defencePosition)) {
                     defenceDirection = defenceOrigin.directionTo(defencePosition);
 
-                    /*if (turnCount > innerWallTurn && rc.isReady()){
-                        try{
-                            if (rc.getDirtCarrying() > 0)
-                                for (Direction dir : directions) {
-                                    MapLocation loc = rc.getLocation().add(dir);
-                                    int distance = hamiltonianDistance(loc, defenceOrigin),
-                                            elev = (rc.senseFlooding(loc) ? -1000 : rc.senseElevation(loc));
-                                    RobotInfo robot = (rc.canSenseLocation(loc) ? rc.senseRobotAtLocation(loc) : null);
-                                    if ((robot == null || !robot.getType().isBuilding())
-                                            && (distance == defenceRadius - 2 && elev < 5)
-                                            && rc.canDepositDirt(dir))
-                                        rc.depositDirt(dir);
-
-                                }
-                            else{
-                                for (Direction dir : directions) {
-                                    MapLocation loc = rc.getLocation().add(dir);
-                                    int distance = hamiltonianDistance(loc, defenceOrigin),
-                                            elev = (rc.senseFlooding(loc) ? -1000 : rc.senseElevation(loc));
-                                    RobotInfo robot = (rc.canSenseLocation(loc) ? rc.senseRobotAtLocation(loc) : null);
-                                    if ((robot == null || !robot.getType().isBuilding())
-                                            && distance == defenceRadius - 1 && elev > 2
-                                            && rc.canDigDirt(dir) && !getFloodFlag(loc))
-                                        rc.digDirt(dir);
-
-                                }
-                            }
-
-                        }catch(Exception e){
-                            e.printStackTrace();
-                        }
-                    }
-*/
                     if (rc.getDirtCarrying() > 0 && rc.isReady()) {
                         int dx = 0, dy = 0;
                         if (defenceDirection.dx == 0) {
@@ -681,8 +642,6 @@ public strictfp class RobotPlayer {
                         rc.digDirt(defenceDirection);
                 } else {
                     Direction dir = landscaperMoveTowards(defencePosition);
-//                    System.out.println(defencePosition + " ,,,, " + dir +  " ::: "
-//                            + hamiltonianDistance(rc.getLocation().add(dir), defenceOrigin));
                     if (dir == Direction.CENTER) return;
 
                     if (rc.canMove(dir)) {
@@ -701,7 +660,6 @@ public strictfp class RobotPlayer {
                                         rc.digDirt(Direction.CENTER);
                                 }
                             } else {
-//                                System.out.println("HERE **** : " + dir + " ,,, " + rc.getDirtCarrying());
                                 if (rc.getDirtCarrying() > 0) {
                                     if (rc.canDepositDirt(Direction.CENTER))
                                         rc.depositDirt(Direction.CENTER);
@@ -760,10 +718,23 @@ public strictfp class RobotPlayer {
                     homeElevation = rc.senseElevation(homeDeliveryDrone);
                     break;
                 }
+
+            defenceOrigin = homeDeliveryDrone;
+            defendingRobotsNumber = 0;
+            for (int dx = -defenceRadius; dx <= defenceRadius; dx++) {
+                int dy = defenceRadius - Math.abs(dx);
+                if (isOnMap(defenceOrigin.translate(dx, dy)))
+                    defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
+                if (dy != 0) {
+                    dy = -dy;
+                    if (isOnMap(defenceOrigin.translate(dx, dy)))
+                        defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
+                }
+            }
         }
         goingToEnemy = false;
 
-        if (state != State.DROP_FRIEND && state != State.DROP_ENEMY) {
+        if (state != State.DROP_FRIEND && state != State.DROP_ENEMY && state != State.DROP_DEFENDER) {
             MapLocation tmpLocation = null;
             if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) < 100)
                 for (RobotInfo enemy : robots) {
@@ -791,15 +762,18 @@ public strictfp class RobotPlayer {
                     RobotInfo robot = rc.senseRobotAtLocation(rc.adjacentLocation(direction));
                     if (robot == null) continue;
                     if (!robot.getType().isBuilding())
-                        if (robot.getTeam() != rc.getTeam() || ((robot.getType() == RobotType.MINER || robot.getType() == RobotType.LANDSCAPER) && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) < defenceRadius))
+                        if (robot.getTeam() != rc.getTeam() || (robot.getType() == RobotType.MINER && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) <= defenceRadius) ||
+                                (robot.getType() == RobotType.LANDSCAPER && hamiltonianDistance(robot.getLocation(), homeDeliveryDrone) < defenceRadius))
                             if (rc.canPickUpUnit(robot.getID())) {
                                 rc.pickUpUnit(robot.getID());
                                 baseDeliveryDrone = rc.getLocation();
                                 randomDestination();
-                                if (robot.getTeam() == rc.getTeam())
-                                    state = State.DROP_FRIEND;
-                                else
+                                if (robot.getTeam() != rc.getTeam())
                                     state = State.DROP_ENEMY;
+                                else if (robot.getType() == RobotType.MINER)
+                                    state = State.DROP_FRIEND;
+                                else if (robot.getType() == RobotType.LANDSCAPER)
+                                    state = State.DROP_DEFENDER;
                             }
                 }
         }
@@ -838,6 +812,33 @@ public strictfp class RobotPlayer {
                 randomDestination();
             else if (rc.canMove(dir))
                 rc.move(dir);
+        }
+        if (state == State.DROP_DEFENDER) {
+            MapLocation bestLocation = null;
+            for (MapLocation location : defencePositions)
+                if ((bestLocation == null || rc.getLocation().distanceSquaredTo(location) < rc.getLocation().distanceSquaredTo(bestLocation)) && rc.canSenseLocation(location) && rc.senseRobotAtLocation(location) == null)
+                    bestLocation = location;
+            if (bestLocation != null) {
+                if (bestLocation.isAdjacentTo(rc.getLocation()) && rc.canDropUnit(rc.getLocation().directionTo(bestLocation))) {
+                    rc.dropUnit(rc.getLocation().directionTo(bestLocation));
+                    state = State.DRONE_EXPLORE;
+                    droneInitExplore();
+                    return;
+                }
+                destination = bestLocation;
+                Direction dir = droneMoveTowards(destination);
+                if (dir == Direction.CENTER)
+                    randomDestination();
+                else if (rc.canMove(dir))
+                    rc.move(dir);
+            } else {
+                randomDestination();
+                Direction dir = droneMoveTowards(destination);
+                if (dir == Direction.CENTER)
+                    randomDestination();
+                else if (rc.canMove(dir))
+                    rc.move(dir);
+            }
         }
     }
 
