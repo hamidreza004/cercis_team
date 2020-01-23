@@ -455,31 +455,44 @@ public strictfp class RobotPlayer {
     }
 
     static int defenceRadius = 3;
-    static int defendingRobotsNumber, extraLandscapers = 1;
+    static int defendingRobotsNumber, extraLandscapers;
     static MapLocation defenceOrigin, defencePosition;
     static MapLocation[] defencePositions = new MapLocation[4 * defenceRadius];
     static Direction defenceDirection;
     static boolean positionFull[] = new boolean[4 * defenceRadius];
 
-    static int landScapersBuilt = 0;
+    static int landScapersBuilt = 0, lastLandscaperBuilt = 0;
 
     static void runDesignSchool() throws GameActionException {
+        int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
+        for (int i = 0; i < soupSaveTurns - 1; i++)
+            lastTurnSoup[i] = lastTurnSoup[i + 1];
+        lastTurnSoup[soupSaveTurns - 1] = rc.getTeamSoup();
+
         if (state == State.UNKNOWN) {
             defenceOrigin = getNearbyHQ();
             if (defenceOrigin != null) {
                 state = State.DESIGNSCHOOL_DEFEND;
 
+                extraLandscapers = 1;
                 defendingRobotsNumber = 0;
                 for (int dx = -defenceRadius; dx <= defenceRadius; dx++) {
                     int dy = defenceRadius - Math.abs(dx);
                     if (isOnMap(defenceOrigin.translate(dx, dy)))
                         defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
 
+                    if (isOnMap(defenceOrigin.translate(dx, dy + 1)))
+                        extraLandscapers++;
+
+                    dy = -dy;
+
                     if (dy != 0) {
-                        dy = -dy;
                         if (isOnMap(defenceOrigin.translate(dx, dy)))
                             defencePositions[defendingRobotsNumber++] = defenceOrigin.translate(dx, dy);
                     }
+
+                    if (isOnMap(defenceOrigin.translate(dx, dy - 1)))
+                        extraLandscapers++;
                 }
             }
         }
@@ -488,10 +501,12 @@ public strictfp class RobotPlayer {
             int cnt = countNearbyDefense();
 //            int cnt = landScapersBuilt;
 
-            if (cnt < defendingRobotsNumber /*+ extraLandscapers*/)
+            if (cnt < defendingRobotsNumber /*+ extraLandscapers*/ || differenceSoup > RobotType.LANDSCAPER.cost * 0.8
+                    || (turnCount - lastLandscaperBuilt > (turnCount > 1000 ? 300 : 150)))
                 for (Direction dir : directions)
                     if (rc.canBuildRobot(RobotType.LANDSCAPER, dir)) {
                         rc.buildRobot(RobotType.LANDSCAPER, dir);
+                        lastLandscaperBuilt = turnCount;
                         landScapersBuilt++;
                         break;
                     }
@@ -630,6 +645,7 @@ public strictfp class RobotPlayer {
                         }
 
                         if (rc.canDepositDirt(depDir)) {
+                            //System.out.println("Depositing dirt " + rc.getLocation().add(depDir));
                             rc.depositDirt(depDir);
                             depositCount++;
                         }
@@ -638,8 +654,10 @@ public strictfp class RobotPlayer {
                     }
 
 
-                    if (rc.canDigDirt(defenceDirection))
+                    if (rc.canDigDirt(defenceDirection)) {
+                        //System.out.println("Getting Dirt " + rc.getLocation().add(defenceDirection));
                         rc.digDirt(defenceDirection);
+                    }
                 } else {
                     Direction dir = landscaperMoveTowards(defencePosition);
                     if (dir == Direction.CENTER) return;
@@ -680,7 +698,8 @@ public strictfp class RobotPlayer {
     }
 
     static MapLocation getDefencePosition() throws GameActionException {
-        if (hamiltonianDistance(rc.getLocation(), defenceOrigin) == defenceRadius)
+        if (hamiltonianDistance(rc.getLocation(), defenceOrigin) == defenceRadius
+            || hamiltonianDistance(rc.getLocation(), defenceOrigin) == defenceRadius + 1)
             return rc.getLocation();
 
         MapLocation ret = null;
