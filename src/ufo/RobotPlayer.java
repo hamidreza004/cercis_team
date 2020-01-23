@@ -874,7 +874,7 @@ public strictfp class RobotPlayer {
             for (RobotInfo robot : robots)
                 if (robot.getType() == RobotType.DELIVERY_DRONE && robot.getTeam() == rc.getTeam())
                     deliveryDrones++;
-            if (rand.nextInt(9) < 4 && deliveryDrones > 3)
+            if (rand.nextInt(3) == 0 && deliveryDrones > 3)
                 droneType = DroneType.ATTACK;
         }
         if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) > 250)
@@ -1056,9 +1056,9 @@ public strictfp class RobotPlayer {
     private static void findEnemyHQ() throws GameActionException {
         if (enemyHQ != null)
             return;
-        for (int i = 1; i < rc.getRoundNum(); i++) {
+        for (int i = Math.max(1, rc.getRoundNum() - 400); i < rc.getRoundNum(); i++) {
             for (Transaction transaction : rc.getBlock(i))
-                if (transaction.getMessage()[3] == rc.getTeam().ordinal())
+                if (transaction.getMessage()[2] == rc.getTeam().ordinal() && transaction.getMessage()[3] == i + 1999 && transaction.getMessage()[4] == 1999)
                     enemyHQ = new MapLocation(transaction.getMessage()[0], transaction.getMessage()[1]);
         }
         if (enemyHQ == null)
@@ -1069,7 +1069,11 @@ public strictfp class RobotPlayer {
                     msg[0] = enemyHQ.x;
                     msg[1] = enemyHQ.y;
                     msg[2] = rc.getTeam().ordinal();
-                    rc.submitTransaction(msg, Math.min(70, rc.getTeamSoup()));
+                    msg[3] = rc.getRoundNum() + 1999;
+                    msg[4] = 1999;
+                    if (rc.canSubmitTransaction(msg, Math.min(70, rc.getTeamSoup())))
+                        rc.submitTransaction(msg, Math.min(70, rc.getTeamSoup()));
+                    return;
                 }
     }
 
