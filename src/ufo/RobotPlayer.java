@@ -678,10 +678,13 @@ public strictfp class RobotPlayer {
                 }
             }
 
-            if (destination == null)
-                randomDestination();
+            if (destination == null || turnCount - lastMoved > 30) {
+                int dx = rand.nextInt(10) - 5, dy = rand.nextInt(10) - 5;
+                destination = rc.getLocation().translate(dx, dy);
+            }
 
             Direction dir = landscaperMoveTowards(destination);
+            System.out.println(destination + " ** " + dir);
             if (dir == Direction.CENTER)
                 randomDestination();
             else if (rc.canMove(dir)) {
