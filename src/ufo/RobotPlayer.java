@@ -926,6 +926,8 @@ public strictfp class RobotPlayer {
         if (rc.getLocation().distanceSquaredTo(homeDeliveryDrone) > 250)
             droneType = DroneType.ATTACK;
         if (droneType == DroneType.ATTACK) {
+            if (!rc.isReady())
+                return;
             for (Direction direction : directions) {
                 MapLocation loc = rc.adjacentLocation(direction);
                 if (!rc.isCurrentlyHoldingUnit()) {
@@ -950,9 +952,11 @@ public strictfp class RobotPlayer {
             if (enemyHQ != null)
                 destination = enemyHQ;
             Direction dir = droneMoveTowards(destination);
-            if (dir == Direction.CENTER)
+            if (dir == Direction.CENTER) {
                 randomDestination();
-            dir = droneMoveTowards(destination);
+                System.out.println("change");
+                dir = droneMoveTowards(destination);
+            }
             if (rc.canMove(dir))
                 rc.move(dir);
             return;
