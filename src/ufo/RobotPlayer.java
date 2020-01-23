@@ -195,7 +195,7 @@ public strictfp class RobotPlayer {
 
             int s = rand.nextInt(directions.length);
             for (int i = 0; i < directions.length; i++) {
-                Direction direction = directions[ (s + i) % directions.length];
+                Direction direction = directions[(s + i) % directions.length];
                 if (rc.canBuildRobot(RobotType.MINER, direction)) {
                     rc.buildRobot(RobotType.MINER, direction);
                     lastMinerCreatedTurn = turnCount;
@@ -377,7 +377,7 @@ public strictfp class RobotPlayer {
             MapLocation nextLoc = rc.adjacentLocation(dir);
             if (nextLoc.distanceSquaredTo(dest)
                     < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
-                    && rc.canMove(dir)  &&  (hamiltonianDistance(rc.getLocation(), homeDeliveryDrone) <= defenceRadius  || goingToEnemy || hamiltonianDistance(nextLoc, homeDeliveryDrone) > defenceRadius)) {
+                    && rc.canMove(dir) && (hamiltonianDistance(rc.getLocation(), homeDeliveryDrone) <= defenceRadius || goingToEnemy || hamiltonianDistance(nextLoc, homeDeliveryDrone) > defenceRadius)) {
                 bestDir = dir;
             }
         }
@@ -749,6 +749,7 @@ public strictfp class RobotPlayer {
     static MapLocation homeDeliveryDrone = null;
     static boolean goingToEnemy = false;
     static int homeElevation;
+
     static void runDeliveryDrone() throws GameActionException {
         if (turnCount == 1) {
             baseDeliveryDrone = rc.getLocation();
@@ -775,8 +776,7 @@ public strictfp class RobotPlayer {
             if (tmpLocation != null) {
                 destination = tmpLocation;
                 goingToEnemy = true;
-            }
-            else
+            } else
                 droneInitExplore();
             state = State.DRONE_EXPLORE;
         }
@@ -804,14 +804,14 @@ public strictfp class RobotPlayer {
                 }
         }
         if (state == State.DROP_ENEMY) {
-            if (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 100) {
-                for (Direction direction : directions)
-                    if (rc.canDropUnit(direction)) {
-                        rc.dropUnit(direction);
-                        droneInitExplore();
-                        state = State.DRONE_EXPLORE;
-                        break;
-                    }
+            for (Direction direction : directions) {
+                MapLocation loc = rc.adjacentLocation(direction);
+                if (rc.canDropUnit(direction) && (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 100 || (rc.canSenseLocation(loc) && rc.senseFlooding(loc)))) {
+                    rc.dropUnit(direction);
+                    droneInitExplore();
+                    state = State.DRONE_EXPLORE;
+                    break;
+                }
             }
 
             Direction dir = droneMoveTowards(destination);
@@ -820,8 +820,7 @@ public strictfp class RobotPlayer {
             else if (rc.canMove(dir))
                 rc.move(dir);
         }
-        if (state == State.DROP_FRIEND)
-        {
+        if (state == State.DROP_FRIEND) {
             if (rc.getLocation().distanceSquaredTo(baseDeliveryDrone) > 100) {
                 for (Direction direction : directions) {
                     MapLocation loc = rc.adjacentLocation(direction);
