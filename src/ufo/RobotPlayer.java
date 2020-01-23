@@ -202,19 +202,20 @@ public strictfp class RobotPlayer {
                 hereRobots++;
         }
         int differenceSoup = rc.getTeamSoup() - lastTurnSoup[0];
-        if (hereRobots < 3 || (turnCount - lastMinerCreatedTurn > 200))
-            if (numberOfMiners < 7 || differenceSoup > RobotType.MINER.cost * 2.5 ||
-                    (rc.getTeamSoup() > 1000 && turnCount - lastMinerCreatedTurn > 50) || (turnCount - lastMinerCreatedTurn > 150)) {
-                int x = rand.nextInt(directions.length);
-                for (int i = x; i < directions.length + x; i++) {
-                    Direction direction = directions[i % directions.length];
-                    if (hamiltonianDistance(rc.adjacentLocation(direction), rc.getLocation()) == 1 && rc.canBuildRobot(RobotType.MINER, direction)) {
-                        rc.buildRobot(RobotType.MINER, direction);
-                        lastMinerCreatedTurn = turnCount;
-                        numberOfMiners++;
+        if (rc.getRoundNum() < 2000)
+            if (hereRobots < 3 || (turnCount - lastMinerCreatedTurn > 200))
+                if (numberOfMiners < 7 || differenceSoup > RobotType.MINER.cost * 2.5 ||
+                        (rc.getTeamSoup() > 1000 && turnCount - lastMinerCreatedTurn > 50) || (turnCount - lastMinerCreatedTurn > 150)) {
+                    int x = rand.nextInt(directions.length);
+                    for (int i = x; i < directions.length + x; i++) {
+                        Direction direction = directions[i % directions.length];
+                        if (hamiltonianDistance(rc.adjacentLocation(direction), rc.getLocation()) == 1 && rc.canBuildRobot(RobotType.MINER, direction)) {
+                            rc.buildRobot(RobotType.MINER, direction);
+                            lastMinerCreatedTurn = turnCount;
+                            numberOfMiners++;
+                        }
                     }
                 }
-            }
         for (int i = 0; i < soupSaveTurns - 1; i++)
             lastTurnSoup[i] = lastTurnSoup[i + 1];
         lastTurnSoup[soupSaveTurns - 1] = rc.getTeamSoup();
@@ -425,7 +426,7 @@ public strictfp class RobotPlayer {
                 if (rc.getLocation().distanceSquaredTo(netgun) < GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)
                     onNetGun = true;
             }
-            if (onNetGun)
+            if (onNetGun || dest == enemyHQ)
                 nearNetgun = false;
             if (!nearNetgun && nextLoc.distanceSquaredTo(dest)
                     < rc.adjacentLocation(bestDir).distanceSquaredTo(dest)
